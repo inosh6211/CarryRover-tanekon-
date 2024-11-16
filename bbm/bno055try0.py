@@ -3,7 +3,7 @@ from machine import I2C, Pin
 import math
 
 # I2C設定
-i2c = I2C(1, scl=Pin(19), sda=Pin(18), freq=400000)
+i2c = I2C(1, scl=Pin(27), sda=Pin(26), freq=400000)
 
 # BNO055のI2Cアドレス
 BNO055_ADDRESS = 0x28
