@@ -23,15 +23,15 @@ def pulseCounter(pin):
         direction = -1
     pulse_count += direction
 
-OUTA_1.irq(trigger=Pin.IRQ_RISING, handler=pulseCounter)
-
 def forward(rate): #rate:0～100
+    OUTA_1.irq(trigger = Pin.IRQ_RISING, handler = pulseCounter)
     STBY.on()
     AIN1.on()
     AIN2.off()
     PWMA.duty_u16(2**16 // 100 * rate)
 
 def stop():
+    OUTA_1.irq(handler = None)
     AIN1.off()
     AIN2.off()
     STBY.off()
