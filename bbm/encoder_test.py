@@ -11,7 +11,7 @@ OUTB_1 = Pin(3, Pin.IN)
 
 PPR = 3 #PPR = CPR / 4
 GEAR_RATIO = 297.92
-INTERVAL = 0.3
+INTERVAL = 0.1
 pulse_count = 0
 direction = 0
 
@@ -36,7 +36,8 @@ def stop():
     AIN2.off()
 
 def calculate_rpm(pulse_count, interval):
-    return ((pulse_count * 60) / (PPR * GEAR_RATIO * interval))
+    rpm = (pulse_count * 60) / (PPR * GEAR_RATIO * interval)
+    return rpm
 
 try:
     forward(50)
