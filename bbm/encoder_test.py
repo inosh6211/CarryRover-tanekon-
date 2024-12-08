@@ -34,7 +34,6 @@ def stop():
     OUTA_1.irq(handler = None)
     AIN1.off()
     AIN2.off()
-    STBY.off()
 
 def calculate_rpm(pulse_count, interval):
     return ((pulse_count * 60) / (PPR * GEAR_RATIO * interval))
