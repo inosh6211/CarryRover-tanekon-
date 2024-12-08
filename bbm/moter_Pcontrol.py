@@ -42,7 +42,7 @@ def calculateRPM(pulse_count, interval):
     rpm = (pulse_count * 60) / (PPR * GEAR_RATIO * interval)
     return rpm
 
-def moterPcontral():
+def moterPcontrol():
     global pulse_count, target_rpm
     rate = 0
     currrent_rpm = 0
