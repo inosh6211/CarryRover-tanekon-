@@ -2,7 +2,6 @@ from machine import UART
 from micropyGPS import MicropyGPS
 import time
 
-# UART 初期化
 uart0 = UART(0, baudrate=9600, tx=0, rx=1)
 gps = MicropyGPS(9, 'dd')
 
@@ -11,7 +10,6 @@ def readGPS():
         sentence = uart0.read()
         if sentence:
             try:
-                # NMEA文を1文字ずつ解析
                 for char in sentence.decode('utf-8'):
                     gps.update(char)
             except Exception as e:
