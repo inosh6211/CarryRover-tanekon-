@@ -17,7 +17,6 @@ def readGPS():
             except Exception as e:
                 print("Error decoding sentence:", e)
 
-# メインループ
 while True:
     readGPS()
     #経度、緯度
