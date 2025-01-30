@@ -13,30 +13,31 @@ def read_gps():
                 for char in sentence.decode('utf-8'):
                     gps.update(char)
             except Exception as e:
-                print("Error decoding sentence:", e)
-
-while True:
-    read_gps()
+                print("error", e)
+                
+if __name__ == '__main__':
+    lat = 0
+    lon = 0
     
-    #データ取得状況
-    if gps.fix_stat > 0:
-        print("GPS信号を受信")
+    while True:
+        read_gps()
         
-        #経度、緯度
-        print(f"Latitude: {gps.latitude[0]}°, Longitude: {gps.longitude[0]}°")
+        #データ取得状況
+        if gps.fix_stat > 0:
+            if lat != gps.latitude[0] or lon != gps.longitude[0]:
+                print("GPS信号を受信")
+                lat = gps.latitude[0]
+                lon = gps.longitude[0]
+                
+                #経度、緯度
+                print(f"Latitude: {lat:.7f}°, Longitude: {lon:.7f}°")
 
-        #PDOP
-        print(f"PDOP: {gps.pdop}")
+                #PDOP
+                print(f"PDOP: {gps.pdop}")
 
-        #測位可能衛星数
-        print(f"Satellites in view: {gps.satellites_in_view}")
+                #測位可能衛星数
+                print(f"Satellites in view: {gps.satellites_in_view}")
 
-        #信号強度
-        print("Signal Strengths (SNR):")
-        for satellite_id, data in gps.satellite_data.items():
-            elevation, azimuth, snr = data
-            print(f"  Satellite ID: {satellite_id}, SNR: {snr}")
-
-    else:
-        print("GPS信号を取得できていません")
-        time.sleep(1)
+        else:
+            print("GPS信号を取得できていません")
+            time.sleep(1)
