@@ -4,6 +4,9 @@ import time
 
 uart0 = UART(0, baudrate=9600, tx=0, rx=1)
 gps = MicropyGPS(9, 'dd')
+current_lat = 0
+current_lon = 0
+updated_formats = set()
 
 def read_gps():
     if uart0.any() > 0:
@@ -11,33 +14,23 @@ def read_gps():
         if sentence:
             try:
                 for char in sentence.decode('utf-8'):
-                    gps.update(char)
-            except Exception as e:
-                print("error", e)
-                
-if __name__ == '__main__':
-    lat = 0
-    lon = 0
-    
+                    gps_format = gps.update(char) 
+                    if gps_format:
+                        updated_formats.add(gps_format)
+            except Exception:
+                print("Error")
+
+if __name__ == '__main__':    
     while True:
         read_gps()
-        
-        #データ取得状況
-        if gps.fix_stat > 0:
-            if lat != gps.latitude[0] or lon != gps.longitude[0]:
-                print("GPS信号を受信")
-                lat = gps.latitude[0]
-                lon = gps.longitude[0]
-                
-                #経度、緯度
-                print(f"Latitude: {lat:.7f}°, Longitude: {lon:.7f}°")
+        if {'GNGGA', 'GNGSA'} <= updated_formats:
+            updated_formats.clear()
+            if gps.pdop < 3 and gps.satellites_in_use > 3:
+                if current_lat != gps.latitude[0] or current_lon != gps.longitude[0]:
+                    current_lat = gps.latitude[0]
+                    current_lon = gps.longitude[0]
+                    print(f"現在地 - 緯度: {gps.latitude[0]:.7f}, 経度: {gps.longitude[0]:.7f}")
+                    print(f"PDOP: {gps.pdop}")
+                    print(f"使用衛星数: {gps.satellites_in_use}")
 
-                #PDOP
-                print(f"PDOP: {gps.pdop}")
-
-                #測位可能衛星数
-                print(f"Satellites in view: {gps.satellites_in_view}")
-
-        else:
-            print("GPS信号を取得できていません")
-            time.sleep(1)
+        time.sleep(0.1)
