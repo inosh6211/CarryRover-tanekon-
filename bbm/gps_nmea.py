@@ -1,4 +1,5 @@
 from machine import UART
+import time
 
 uart0 = UART(0, baudrate=9600, tx=0, rx=1)
 
@@ -9,5 +10,7 @@ if __name__ == '__main__':
             if sentence:
                 try:
                     print(sentence.decode('utf-8'))
-                except Exception as e:
-                    print("error", e)
+                except Exception:
+                    print("Error:")
+
+        time.sleep(0.1)
