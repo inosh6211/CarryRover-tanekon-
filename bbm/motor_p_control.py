@@ -6,16 +6,16 @@ AIN1 = Pin(18, Pin.OUT)
 AIN2 = Pin(17, Pin.OUT)
 PWMA = PWM(Pin(16))
 PWMA.freq(1000)
-OUTA_1 = Pin(2, Pin.IN)
-OUTB_1 = Pin(3, Pin.IN)
+OUTA_1 = Pin(3, Pin.IN)
+OUTB_1 = Pin(2, Pin.IN)
 
 # モーターB設定
 BIN1 = Pin(19, Pin.OUT)
 BIN2 = Pin(22, Pin.OUT)
 PWMB = PWM(Pin(28))
 PWMB.freq(1000)
-OUTA_2 = Pin(6, Pin.IN)
-OUTB_2 = Pin(7, Pin.IN)
+OUTA_2 = Pin(7, Pin.IN)
+OUTB_2 = Pin(6, Pin.IN)
 
 # その他設定
 STBY = Pin(9, Pin.OUT)
