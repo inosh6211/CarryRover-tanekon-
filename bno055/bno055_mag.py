@@ -1,5 +1,5 @@
 from machine import Pin, I2C
-from bno055 import BNO055
+from bno055 import *
 import math
 import time
 
