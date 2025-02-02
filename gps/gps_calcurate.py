@@ -32,8 +32,8 @@ def get_lat_lon():
                 gps_updated = 1
                 lat = gps.latitude[0]
                 lon = gps.longitude[0]
-        else:
-            gps_updated = 0
+    else:
+        gps_updated = 0
 
 def calcurate_distance():
     EARTH_RADIUS = 6378137
