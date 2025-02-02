@@ -6,7 +6,7 @@ import time
 uart0 = UART(0, baudrate=9600, tx=0, rx=1)
 gps = MicropyGPS(9, 'dd')
 updated_formats = set()
-
+gps_updated = 0
 lat = 0
 lon = 0
 GOAL_LAT, GOAL_LON = 35.7171709, 139.8232740
@@ -24,15 +24,16 @@ def read_nmea():
                 print(f"Error: {e}")
 
 def get_lat_lon():
-    global lat, lon
+    global gps_updated, lat, lon
     if {'GNGGA', 'GNGSA'} <= updated_formats:
         updated_formats.clear()
         if gps.pdop < 3 and gps.satellites_in_use > 3:
             if lat != gps.latitude[0] or lon != gps.longitude[0]:
+                gps_updated = 1
                 lat = gps.latitude[0]
                 lon = gps.longitude[0]
-                return lat, lon
-    return None
+        else:
+            gps_updated = 0
 
 def calcurate_distance():
     EARTH_RADIUS = 6378137
@@ -55,8 +56,8 @@ def calcurate_azimuth():
 if __name__ == '__main__':
     while True:
         read_nmea()
-        result = get_lat_lon()
-        if result is not None:
+        get_lat_lon()
+        if gps_updated == 1:
             print(f"緯度: {lat:.7f}, 経度: {lon:.7f}")
             print(f"距離: {calcurate_distance():.2f} m, 方位角: {calcurate_azimuth():.2f}°")
         
