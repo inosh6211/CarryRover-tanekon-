@@ -26,6 +26,7 @@ red_threshold = (20, 130, 15, 127, 15, 127)
 
 while True:
     img = sensor.snapshot()
+    img.replace(vflip = False, hmirror = True, transpose = True)
     blobs = img.find_blobs([red_threshold])
     red_pixels = 0
 
