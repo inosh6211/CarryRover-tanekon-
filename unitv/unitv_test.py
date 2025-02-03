@@ -1,8 +1,6 @@
 import sensor
-import lcd
 import time
 
-lcd.init()
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.VGA)
@@ -13,5 +11,4 @@ sensor.skip_frames(time=2000)
 while True:
     img = sensor.snapshot()
     img.replace(vflip = False, hmirror = True, transpose = True)
-    lcd.display(img)
     time.sleep(0.1)
