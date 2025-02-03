@@ -24,14 +24,14 @@ while True:
     img.replace(vflip=False, hmirror=True, transpose=True)
     blobs = img.find_blobs([red_threshold], pixels_threshold=10, area_threshold=10, merge=True, margin=10)
 
-    red_pixels = 0
+    pixels = 0
     centers = []
     object = 0
 
     if blobs:
         for blob in blobs:
             object += 1
-            red_pixels += blob.pixels()
+            pixels += blob.pixels()
             cx, cy = blob.cx(), blob.cy()
             centers.append((cx, cy))
 
@@ -40,7 +40,7 @@ while True:
             img.draw_cross(cx, cy, color=(0, 255, 0))
             img.draw_string(cx + 5, cy, "({}, {})".format(cx, cy), color=(255, 255, 255))
 
-            print("物体{},ピクセル数：{}, 中心座標: {}".format(object, red_pixels, centers))
+            print("物体{},ピクセル数：{}, 中心座標: {}".format(object, pixels, centers))
     else:
         print("なし")
 
