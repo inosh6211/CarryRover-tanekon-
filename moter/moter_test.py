@@ -13,6 +13,8 @@ PWMB.freq(1000)
 STBY = Pin(9, Pin.OUT, value = 1)
 
 def forward(rate_a, rate_b):
+    rate_a = max(0, min(rate_a, 100))
+    rate_b = max(0, min(rate_b, 100))
     AIN1.off()
     AIN2.on()
     PWMA.duty_u16(65535 * rate_a // 100)
