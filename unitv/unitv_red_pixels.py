@@ -25,7 +25,7 @@ sensor.set_auto_whitebal(False)
 sensor.skip_frames(time=2000)
 
 # 赤色の閾値（LAB）
-red_threshold = (20, 130, 15, 127, 15, 127)
+red_threshold = (20, 130, 40, 80, 30, 80)
 
 while True:
     img = sensor.snapshot()
