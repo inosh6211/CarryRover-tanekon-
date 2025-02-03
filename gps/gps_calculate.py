@@ -35,7 +35,7 @@ def get_lat_lon():
     else:
         gps_updated = 0
 
-def calcurate_distance():
+def calculate_distance():
     EARTH_RADIUS = 6378137
     
     lat0, lon0, lat1, lon1 = map(math.radians, [lat, lon, GOAL_LAT, GOAL_LON])
@@ -45,7 +45,7 @@ def calcurate_distance():
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return EARTH_RADIUS * c
 
-def calcurate_azimuth():
+def calculate_azimuth():
     lat0, lon0, lat1, lon1 = map(math.radians, [lat, lon, GOAL_LAT, GOAL_LON])
     dlon = lon1 - lon0
     x = math.sin(dlon) * math.cos(lat1)
@@ -59,6 +59,6 @@ if __name__ == '__main__':
         get_lat_lon()
         if gps_updated == 1:
             print(f"緯度: {lat:.7f}, 経度: {lon:.7f}")
-            print(f"距離: {calcurate_distance():.2f} m, 方位角: {calcurate_azimuth():.2f}°")
+            print(f"距離: {calculate_distance():.2f} m, 方位角: {calculate_azimuth():.2f}°")
         
         time.sleep(0.1)
