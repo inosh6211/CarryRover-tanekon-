@@ -19,7 +19,7 @@ uart = UART(UART.UART1, 115200, 8, None, 1, timeout=1000, read_buf_len=4096)
 # カメラの初期設定
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
-sensor.set_framesize(sensor.VGA)
+sensor.set_framesize(sensor.QVGA)
 sensor.set_auto_gain(False)
 sensor.set_auto_whitebal(False)
 sensor.skip_frames(time=2000)
