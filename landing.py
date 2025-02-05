@@ -2,10 +2,12 @@ import machine
 import time
 import math
 from bno055 import *
+from bme280 import BME280
 i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))  
 
 
 bno = BNO055(i2c)
+bme = BME280(i2c = i2c)
 def euler(axis):
     bno.iget(QUAT_DATA)
    
@@ -47,26 +49,36 @@ def landing():
     
     time.sleep(0.1)
     init_roll = euler(0)
+    _, pressure, _ = bme.read_compensated_data()
+    pressure /= 25600
+    init_pressure = pressure
     start_time = time.time()
 
     while True:
         time.sleep(0.1)
         current_roll = euler(0)
+        _, pressure, _ = bme.read_compensated_data()
+        pressure /= 25600
+        current_pressure = pressure
         diff_roll = current_roll - init_roll
+        diff_pressure = current_pressure - init_pressure
         init_roll = current_roll
+        init_pressure = current_pressure
         
-        if abs(diff_roll) < 0.1:
+        if abs(diff_roll) < 0.1 and abs(diff_pressure) < 0.1:
           j += 1
         
         else:
           j = 0
         
-        elapsed_time = (time.time() - start_time) / 1000
+        elapsed_time = (time.time() - start_time) 
 
         if j == 3 or elapsed_time > 30:
           print("landing")
           break
         
         print(f"roll:{diff_roll}")
+        print(pressure)
+        print(elapsed_time)
         
 landing()
