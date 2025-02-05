@@ -2,10 +2,12 @@ import machine
 import time
 import math
 from bno055 import *
+from bme280 import BME280
 i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))  
 
 
 bno = BNO055(i2c)
+bme = BME280(i2c = i2c)
 def euler():
     bno.iget(QUAT_DATA)
    
@@ -42,13 +44,21 @@ def euler():
     return roll, pitch, yaw
 
 def start():
+    _, pressure, _ = bme.read_compensated_data()
+    pressure /= 25600
+    init_pressure = pressure
     while True:
         time.sleep(0.1)
         roll, pitch, yaw = euler()
-        if abs(roll) > 45 and abs(roll) < 135:
+        _, pressure, _ = bme.read_compensated_data()
+        pressure /= 25600
+        current_pressure = pressure
+        diff_pressure = current_pressure - init_pressure
+        if abs(roll) > 45 and abs(roll) < 135 and diff_pressure < -0.5:
             print("start")
             break
         else:
             print(f"roll:{roll}")
+            print(pressure)
 start()          
         
