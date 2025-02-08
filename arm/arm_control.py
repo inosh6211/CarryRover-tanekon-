@@ -8,7 +8,7 @@ i2c = I2C(1, scl=Pin(27), sda=Pin(26))
 servos = Servos(i2c)
 servos.pca9685.freq(50)
 
-# === サーボ制御関数 ===
+# = サーボ制御関数 =
 def control_servo(index, angle):
     servos.position(index, degrees=angle)
 
@@ -31,7 +31,7 @@ IMG_HEIGHT = 320
 FOCAL_LENGTH = 2.04
 SENSOR_WIDTH = 2.7552
 
-# === カメラのピクセル座標を実空間座標に変換 ===
+# = カメラのピクセル座標を実空間座標に変換 =
 def pixel_to_real(x_pixel, y_pixel, obj_width):
     obj_real_width = 20  # 物体の実際の幅 (mm)
     distance = (FOCAL_LENGTH * obj_real_width * IMG_WIDTH) / (obj_width * SENSOR_WIDTH)
@@ -41,7 +41,7 @@ def pixel_to_real(x_pixel, y_pixel, obj_width):
 
     return distance, x_real, y_real
 
-# === 逆運動学 (x_t, y_t) を元にアームの角度を計算 ===
+# = 逆運動学 (x_t, y_t) を元にアームの角度を計算 =
 def inverse_kinematics(x_t, y_t):
     x_w = x_t - L3 * math.cos(math.radians(0))
     y_w = y_t - L3 * math.sin(math.radians(0))
@@ -68,11 +68,11 @@ def read_camera():
     while uart1.any() > 0:
         message += uart1.read().decode('utf-8').strip()
 
-    print(f"Received raw message: '{message}'")  # 🔍 受信データを確認
+    print(f"Received raw message: '{message}'")  # 受信データを確認
 
     if message.startswith("$"):
-        data = message[1:].split(",")  # `$` を除去して `,` で分割
-        print(f"Parsed data: {data}")  # 🔍 分割したデータを表示
+        data = message[1:].split(",")  
+        print(f"Parsed data: {data}")  # 分割したデータを表示
 
         if data[0] == "0":  # 物体が見つからない場合
             return None, None, None
@@ -81,7 +81,7 @@ def read_camera():
             objects_count = int(data[0])  # 最初の要素は物体数
             data = list(map(int, data[1:]))  # 残りのデータを `int` に変換
         except ValueError as e:
-            print(f"Data conversion error: {e}")  # 🔍 変換エラーの内容を表示
+            print(f"Data conversion error: {e}")  # 変換エラーの内容を表示
             return None, None, None
 
         max_pixels = 0
@@ -100,7 +100,7 @@ def read_camera():
 
         return max_pixels, target_cx, target_cy
 
-    return None, None, None  # 不正なデータの場合は `None` を返す
+    return None, None, None  # 不正なデータの場合はNone 
 
 
 
