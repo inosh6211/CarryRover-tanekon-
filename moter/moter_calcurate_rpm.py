@@ -31,7 +31,6 @@ direction_B = 0
 # エンコーダAのパルスカウント処理
 def pulse_counter_A(pin):
     global pulse_count_A, direction_A
-    print(f"A1={OUTA_1.value()}, B1={OUTB_1.value()}")  # デバッグ出力
 
     if OUTA_1.value() == OUTB_1.value():
         direction_A = 1  # 正回転
@@ -39,12 +38,10 @@ def pulse_counter_A(pin):
         direction_A = -1  # 逆回転
 
     pulse_count_A += direction_A
-    print(f"pulse_count_A = {pulse_count_A}, direction_A = {direction_A}")
 
 # エンコーダBのパルスカウント処理
 def pulse_counter_B(pin):
     global pulse_count_B, direction_B
-    print(f"A2={OUTA_2.value()}, B2={OUTB_2.value()}")
 
     if OUTA_2.value() == OUTB_2.value():
         direction_B = 1  # 正回転
@@ -52,7 +49,6 @@ def pulse_counter_B(pin):
         direction_B = -1  # 逆回転
 
     pulse_count_B += direction_B
-    print(f"pulse_count_B = {pulse_count_B}, direction_B = {direction_B}")
 
 # 前進
 def forward(rate_A, rate_B):  # rate: 0～100
@@ -103,8 +99,8 @@ if __name__ == '__main__':
             time.sleep(INTERVAL)
 
             elapsed_time = (time.ticks_ms() - start_time) / 1000
-            rpm_A = calculateRPM(pulse_count_A, INTERVAL)
-            rpm_B = calculateRPM(pulse_count_B, INTERVAL)
+            rpm_A = calculate_rpm(pulse_count_A, INTERVAL)
+            rpm_B = calculate_rpm(pulse_count_B, INTERVAL)
             
             print(f"Elapsed Time: {elapsed_time:.2f}s, RPM A: {rpm_A:.2f}, Pulse Count A: {pulse_count_A}")
             print(f"Elapsed Time: {elapsed_time:.2f}s, RPM B: {rpm_B:.2f}, Pulse Count B: {pulse_count_B}")
