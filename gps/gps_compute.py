@@ -35,7 +35,7 @@ def get_lat_lon():
     else:
         gps_updated = 0
 
-def calculate_distance():
+def compute_distance():
     EARTH_RADIUS = 6378137
     
     lat0, lon0, lat1, lon1 = map(math.radians, [lat, lon, GOAL_LAT, GOAL_LON])
@@ -45,7 +45,7 @@ def calculate_distance():
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return EARTH_RADIUS * c
 
-def calculate_azimuth():
+def compute_azimuth():
     lat0, lon0, lat1, lon1 = map(math.radians, [lat, lon, GOAL_LAT, GOAL_LON])
     dlon = lon1 - lon0
     x = math.sin(dlon) * math.cos(lat1)
