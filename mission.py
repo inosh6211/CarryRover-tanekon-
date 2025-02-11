@@ -173,7 +173,7 @@ def landing():
         print(f"roll:{diff_roll}")
         print(pressure)
         print(elapsed_time)
-        roll_data = str(roll).encode('utf-8') + "\n"
+        roll_data = str(diff_roll).encode('utf-8') + "\n"
         ble_service.send(roll_data)
         pressure_data = str(pressure).encode('utf-8') + "\n"
         ble_service.send(pressure_data)  # データを送信
