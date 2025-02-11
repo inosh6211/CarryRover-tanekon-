@@ -86,8 +86,8 @@ if __name__ == '__main__':
             time.sleep(INTERVAL)
 
             elapsed_time = (time.ticks_ms() - start_time) / 1000
-            rpm_A = calculate_rpm(pulse_count_A, INTERVAL)
-            rpm_B = calculate_rpm(pulse_count_B, INTERVAL)
+            rpm_A = compute_rpm(pulse_count_A, INTERVAL)
+            rpm_B = compute_rpm(pulse_count_B, INTERVAL)
             
             print(f"Elapsed Time: {elapsed_time:.2f}s, RPM A: {rpm_A:.2f}, Pulse Count A: {pulse_count_A}")
             print(f"Elapsed Time: {elapsed_time:.2f}s, RPM B: {rpm_B:.2f}, Pulse Count B: {pulse_count_B}")
