@@ -97,8 +97,8 @@ if __name__ == '__main__':
             time.sleep(0.1)
             now = time.ticks_ms()
             interval = (now - start_time) / 1000
-            rpm_A = calculate_rpm(pulse_count_A, interval)
-            rpm_B = calculate_rpm(pulse_count_B, interval)
+            rpm_A = compute_rpm(pulse_count_A, interval)
+            rpm_B = compute_rpm(pulse_count_B, interval)
             error_A = TARGET_RPM - rpm_A
             error_B = TARGET_RPM - rpm_B
             integral_A += error_A * interval 
