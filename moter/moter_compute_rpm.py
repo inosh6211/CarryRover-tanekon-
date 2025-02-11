@@ -62,18 +62,6 @@ def forward(rate_A, rate_B):  # rate: 0～100
     BIN2.off()
     PWMB.duty_u16(int(65535 * rate_B / 100))
 
-# 前進
-def back(rate_A, rate_B):  # rate: 0～100
-    rate_A = max(0, min(rate_A, 100))
-    rate_B = max(0, min(rate_B, 100))
-
-    AIN1.on()
-    AIN2.off()
-    PWMA.duty_u16(int(65535 * rate_A / 100))
-    BIN1.off()
-    BIN2.on()
-    PWMB.duty_u16(int(65535 * rate_B / 100))
-
 # 停止
 def stop():
     AIN1.off()
@@ -82,7 +70,7 @@ def stop():
     BIN2.off()
 
 # RPM計算
-def calculate_rpm(pulse_count, interval):
+def compute_rpm(pulse_count, interval):
     if interval == 0:
         return 0
     return (pulse_count * 60) / (PPR * GEAR_RATIO * interval)
@@ -91,8 +79,7 @@ if __name__ == '__main__':
     try:
         OUTA_1.irq(trigger=Pin.IRQ_RISING, handler=pulse_counter_A)
         OUTA_2.irq(trigger=Pin.IRQ_RISING, handler=pulse_counter_B)
-        #forward(40, 40)
-        back(40, 40)
+        forward(40, 40)
         start_time = time.ticks_ms()
 
         while True:
