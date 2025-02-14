@@ -22,44 +22,44 @@ OUTB_2 = Pin(6, Pin.IN)
 PPR = 3  # PPR = CPR / 4
 GEAR_RATIO = 297.92
 
-pulse_count_A = 0
-direction_A = 0
-pulse_count_B = 0
-direction_B = 0
+pulse_count_a = 0
+direction_a = 0
+pulse_count_b = 0
+direction_b = 0
 
 # P制御
-Kp = 1
+KP_RPM = 1
 TARGET_RPM = 30
 
 # エンコーダAのパルスカウント処理
-def pulse_counter_A(pin):
-    global pulse_count_A, direction_A
+def pulse_counter_a(pin):
+    global pulse_count_a, direction_a
     if OUTA_1.value() == OUTB_1.value():
-        direction_A = 1
+        direction_a = 1
     else:
-        direction_A = -1
-    pulse_count_A += direction_A
+        direction_a = -1
+    pulse_count_a += direction_a
 
 # エンコーダBのパルスカウント処理
-def pulse_counter_B(pin):
-    global pulse_count_B, direction_B
+def pulse_counter_b(pin):
+    global pulse_count_b, direction_b
     if OUTA_2.value() == OUTB_2.value():
-        direction_B = 1
+        direction_b = 1
     else:
-        direction_B = -1
-    pulse_count_B += direction_B
+        direction_b = -1
+    pulse_count_b += direction_b
 
 # 前進
-def forward(rate_A, rate_B):
-    rate_A = max(0, min(rate_A, 100))
-    rate_B = max(0, min(rate_B, 100))
+def forward(rate_a, rate_b):
+    rate_a = max(0, min(rate_a, 100))
+    rate_b = max(0, min(rate_b, 100))
 
     AIN1.off()
     AIN2.on()
-    PWMA.duty_u16(int(65535 * rate_A / 100))
+    PWMA.duty_u16(int(65535 * rate_a / 100))
     BIN1.on()
     BIN2.off()
-    PWMB.duty_u16(int(65535 * rate_B / 100))
+    PWMB.duty_u16(int(65535 * rate_b / 100))
 
 # 停止
 def stop():
@@ -80,22 +80,22 @@ def p_control(kp, target, actual):
     
 if __name__ == '__main__':
     try:
-        OUTA_1.irq(trigger=Pin.IRQ_RISING, handler=pulse_counter_A)
-        OUTA_2.irq(trigger=Pin.IRQ_RISING, handler=pulse_counter_B)
-        rate_A = rate_B = 10
-        forward(rate_A, rate_B)
+        OUTA_1.irq(trigger = Pin.IRQ_RISING, handler = pulse_counter_a)
+        OUTA_2.irq(trigger = Pin.IRQ_RISING, handler = pulse_counter_b)
+        rate_a = rate_b = 10
+        forward(rate_a, rate_b)
         start_time = time.ticks_ms()
         while True:
             time.sleep(0.1)
             now = time.ticks_ms()
             interval = (now - start_time) / 1000
-            rpm_A = compute_rpm(pulse_count_A, interval)
-            rpm_B = compute_rpm(pulse_count_B, interval)     
-            rate_A += p_control(Kp, TARGET_RPM, rpm_A)
-            rate_B += p_control(Kp, TARGET_RPM, rpm_B)
-            forward(rate_A, rate_B)
-            pulse_count_A = 0
-            pulse_count_B = 0
+            rpm_a = compute_rpm(pulse_count_a, interval)
+            rpm_b = compute_rpm(pulse_count_b, interval)     
+            rate_a += p_control(KP_RPM, TARGET_RPM, rpm_a)
+            rate_b += p_control(KP_RPM, TARGET_RPM, rpm_b)
+            forward(rate_a, rate_b)
+            pulse_count_a = 0
+            pulse_count_b = 0
             start_time = now
         
     except KeyboardInterrupt:
