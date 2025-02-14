@@ -2,7 +2,7 @@ from machine import UART
 from micropyGPS import MicropyGPS
 import time
 
-uart0 = UART(0, baudrate=9600, tx=0, rx=1)
+uart0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
 gps = MicropyGPS(9, 'dd')
 current_lat = 0
 current_lon = 0
