@@ -94,9 +94,9 @@ if __name__ == '__main__':
             rate_a += p_control(KP_RPM, TARGET_RPM, rpm_a)
             rate_b += p_control(KP_RPM, TARGET_RPM, rpm_b)
             forward(rate_a, rate_b)
+            start_time = time.ticks_ms()
             pulse_count_a = 0
             pulse_count_b = 0
-            start_time = now
         
     except KeyboardInterrupt:
         stop()
