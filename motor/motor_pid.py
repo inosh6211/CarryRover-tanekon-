@@ -56,7 +56,7 @@ def pulse_counter_B(pin):
         direction_B = -1
     pulse_count_B += direction_B
 
-# PWM制御（前進）
+# 前進
 def forward(rate_A, rate_B):
     rate_A = max(0, min(rate_A, 100))
     rate_B = max(0, min(rate_B, 100))
