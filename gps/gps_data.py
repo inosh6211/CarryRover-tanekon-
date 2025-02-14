@@ -1,4 +1,4 @@
-from machine import UART
+from machine import Pin, UART
 from micropyGPS import MicropyGPS
 import time
 
