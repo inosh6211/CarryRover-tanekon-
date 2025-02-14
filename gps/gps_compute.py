@@ -1,9 +1,9 @@
-from machine import UART
+from machine import Pin, UART
 from micropyGPS import MicropyGPS
 import math
 import time
 
-uart0 = UART(0, baudrate=9600, tx=0, rx=1)
+uart0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
 gps = MicropyGPS(9, 'dd')
 updated_formats = set()
 gps_updated = 0
