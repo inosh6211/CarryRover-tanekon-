@@ -28,7 +28,7 @@ pulse_count_b = 0
 direction_b = 0
 
 # P制御
-KP_RPM = 1
+KP_RPM = 0.5
 TARGET_RPM = 30
 
 # エンコーダAのパルスカウント処理
@@ -86,13 +86,14 @@ if __name__ == '__main__':
         forward(rate_a, rate_b)
         start_time = time.ticks_ms()
         while True:
-            time.sleep(0.1)
+            time.sleep(0.05)
             now = time.ticks_ms()
             interval = (now - start_time) / 1000
             rpm_a = compute_rpm(pulse_count_a, interval)
             rpm_b = compute_rpm(pulse_count_b, interval)     
             rate_a += p_control(KP_RPM, TARGET_RPM, rpm_a)
             rate_b += p_control(KP_RPM, TARGET_RPM, rpm_b)
+            print(rate_a)
             forward(rate_a, rate_b)
             start_time = time.ticks_ms()
             pulse_count_a = 0
