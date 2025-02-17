@@ -1,11 +1,11 @@
 from machine import Pin, PWM
 import time
 
+PPR = 3  # PPR = CPR / 4
+GEAR_RATIO = 297.92  # ギア比
+KP_RPM = 0.5  # P制御の比例ゲイン
+    
 class Motor:
-    PPR = 3  # PPR = CPR / 4
-    GEAR_RATIO = 297.92  # ギア比
-    KP_RPM = 0.5  # P制御の比例ゲイン
-
     def __init__(self, ain1, ain2, pwma, bin1, bin2, pwmb, stby, outa1, outb1, outa2, outb2):
         # モーター用ピンの設定(Aが右, Bが左)
         self.AIN1 = Pin(ain1, Pin.OUT)
