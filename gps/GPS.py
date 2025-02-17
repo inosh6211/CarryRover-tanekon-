@@ -3,9 +3,9 @@ from micropyGPS import MicropyGPS
 import math
 import time
 
-class GPS:
-    EARTH_RADIUS = 6378137  # 地球の半径(m)
+EARTH_RADIUS = 6378137  # 地球の半径(m)
 
+class GPS:
     def __init__(self, uart, tx, rx, baudrate, goal_lat, goal_lon):
         self.uart = UART(uart, baudrate=baudrate, tx=Pin(tx), rx=Pin(rx))
         self.micropygps = MicropyGPS(9, 'dd')
@@ -66,3 +66,4 @@ if __name__ == '__main__':
             print(f"距離: {gps.distance:.2f} m, 方位角: {gps.azimuth:.2f}°")
     
         time.sleep(0.1)
+
