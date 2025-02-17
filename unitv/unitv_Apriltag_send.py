@@ -29,15 +29,21 @@ clock = time.clock()
 VALID_TAG_IDS = set(range(8))
 
 # ROI（AprilTag認識用のエリア）を設定
+#上をカット
 IMG_W, IMG_H = sensor.width(), sensor.height()  # 画像の幅と高さ
 ROI_X, ROI_Y = 0, IMG_H // 4  # 上1/4をカットして、下3/4だけ処理
 ROI_W, ROI_H = IMG_W, IMG_H - ROI_Y
+
+# 右をカット
+#IMG_W, IMG_H = sensor.width(), sensor.height()  # 画像の幅と高さ
+#ROI_X, ROI_Y = 0, 0  # 左1/4をカット、右3/4を対象
+#ROI_W, ROI_H = IMG_W * 3 // 4, IMG_H  # 幅を調整して左1/4をカット
 
 while True:
     clock.tick()
     img = sensor.snapshot()  # 画像をキャプチャ
 
-    # AprilTagの検出はROI（下3/4領域）内で実行
+    # AprilTagの検出はROI内で実行
     tags = img.find_apriltags(roi=(ROI_X, ROI_Y, ROI_W, ROI_H), families=image.TAG36H11)
 
     for tag in tags:
