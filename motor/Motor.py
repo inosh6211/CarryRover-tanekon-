@@ -121,19 +121,22 @@ class Motor:
         self.rate_b = 10
         self.state = STOP
 
-    def compute_rpm(self, pulse_count):
+    def compute_rpm(self, pulse_count, interval):
         if INTERVAL <= 0:
             return 0
-        rpm = abs((pulse_count * 60) / (PPR * GEAR_RATIO * INTERVAL))
+        rpm = abs((pulse_count * 60) / (PPR * GEAR_RATIO * interval))
         return rpm
 
     def update_speed(self, timer):
-        rpm_a = self.compute_rpm(self.pulse_count_a)
-        rpm_b = self.compute_rpm(self.pulse_count_b)
+        now = time.ticks_ms()
+        interval = (now - self.start_time) / 1000
+        rpm_a = self.compute_rpm(self.pulse_count_a, interval)
+        rpm_b = self.compute_rpm(self.pulse_count_b, interval)
         self.rate_a += KP_RPM * (self.target_rpm_a - rpm_a)
         self.rate_b += KP_RPM * (self.target_rpm_b - rpm_b)
         self.rate_a = min(max(self.rate_a, 0), 100)
         self.rate_b = min(max(self.rate_b, 0), 100)
+        self.start_time = now
         self.pulse_count_a = 0
         self.pulse_count_b = 0
     
@@ -146,6 +149,7 @@ class Motor:
         self.OUTA_1.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_a)
         self.OUTA_2.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_b)
         self.timer.init(mode=Timer.PERIODIC, freq=1/INTERVAL, callback=self.update_speed)
+        self.start_time = time.ticks_ms()
 
     # 割り込み無効化
     def disable_irq(self):
