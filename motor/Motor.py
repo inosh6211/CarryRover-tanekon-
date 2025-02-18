@@ -2,11 +2,11 @@ from machine import Pin, PWM, Timer
 import time
 import math
 
-STATE_STOP       = 0
-STATE_FORWARD    = 1
-STATE_TURN_RIGHT = 2
-STATE_TURN_LEFT  = 3
-STATE_BACKWARD   = 4
+STOP = 0
+FORWARD = 1
+TURN_RIGHT = 2
+TURN_LEFT  = 3
+BACKWARD = 4
 
 PPR         = 3            # PPR = CPR / 4
 GEAR_RATIO  = 297.92       # ギア比
@@ -42,7 +42,7 @@ class Motor:
         self.direction_a = 0
         self.direction_b = 0
         self.start_time = time.ticks_ms()
-        self.state = STATE_STOP
+        self.state = STOP
 
         # エンコーダの割り込み設定
         self.OUTA_1.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_a)
@@ -65,53 +65,52 @@ class Motor:
             self.direction_b = -1
         self.pulse_count_b += self.direction_b
 
-    def forward(self):
-        if self.state != STATE_FORWARD:
-            self.stop()
-        
-        self.AIN1.off()
-        self.AIN2.on()
-        self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-        self.BIN1.on()
-        self.BIN2.off()
-        self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-        self.state = STATE_FORWARD
+    def move(self, state):
+        if state == FORWARD:
+            if self.state != FORWARD:
+                self.stop()
+                
+            self.AIN1.off()
+            self.AIN2.on()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.on()
+            self.BIN2.off()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+            self.state = FORWARD
 
-    def turn_right(self):
-        if self.state != STATE_TURN_RIGHT:
-            self.stop()
-            
-        self.AIN1.on()
-        self.AIN2.off()
-        self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-        self.BIN1.on()
-        self.BIN2.off()
-        self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-        self.state = STATE_TURN_RIGHT
+        if state == TURN_RIGHT:
+            if self.state != TURN_RIGHT:
+                self.stop()
+                
+            self.AIN1.on()
+            self.AIN2.off()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.on()
+            self.BIN2.off()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+            self.state = TURN_RIGHT
 
-    def turn_left(self):
-        if self.state != STATE_TURN_LEFT:
-            self.stop()
-            
-        self.AIN1.off()
-        self.AIN2.on()
-        self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-        self.BIN1.off()
-        self.BIN2.on()
-        self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-        self.state = STATE_TURN_LEFT
+        if state == TURN_LEFT:
+            if self.state != TURN_LEFT:
+                self.stop()
+            self.AIN1.off()
+            self.AIN2.on()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.off()
+            self.BIN2.on()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+            self.state = TURN_LEFT
 
-    def backward(self):
-        if self.state != STATE_BACKWARD:
-            self.stop()
-
-        self.AIN1.on()
-        self.AIN2.off()
-        self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-        self.BIN1.off()
-        self.BIN2.on()
-        self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-        self.state = STATE_BACKWARD
+        if state == BACKWARD:
+            if self.state != BACKWARD:
+                self.stop()
+            self.AIN1.on()
+            self.AIN2.off()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.off()
+            self.BIN2.on()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+            self.state = BACKWARD
 
     def stop(self):
         self.AIN1.off()
@@ -120,7 +119,7 @@ class Motor:
         self.BIN2.off()
         self.rate_a = 10
         self.rate_b = 10
-        self.state = STATE_STOP
+        self.state = STOP
 
     def compute_rpm(self, pulse_count):
         if INTERVAL <= 0:
@@ -167,29 +166,15 @@ if __name__ == '__main__':
         motor.enable_irq()
         motor.update_rpm(30, 30)
         
-        start_time = time.time()
-        while time.time() - start_time < 3:
-            motor.forward()
-            time.sleep(0.01)
-
-        start_time = time.time()
-        while time.time() - start_time < 3:
-            motor.turn_right()
-            time.sleep(0.01)
-        
-        start_time = time.time()
-        while time.time() - start_time < 3:
-            motor.turn_left()
-            time.sleep(0.01)
-        
-        start_time = time.time()
-        while time.time() - start_time < 3:
-            motor.backward()
-            time.sleep(0.01)
-        
-        motor.stop()
-        motor.disable_irq()
-        print("stopped!")
+        while True:
+            for i in range(1, 4):
+                start_time = time.time()
+                while time.time() - start_time < 3:
+                    motor.move(i)
+                    time.sleep(0.01)
+                
+            motor.stop()
+            time.sleep(3)
         
     except KeyboardInterrupt:
         motor.stop()
