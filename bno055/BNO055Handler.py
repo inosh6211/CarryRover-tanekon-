@@ -13,11 +13,13 @@ class BNO055Handler:
         self.heading = 0
         
     def get_calibration_status(self):
+        """
+        BNO055を完全に静止させる。
+        BNO055を6方向に向けて静止させる
+        BNO055を空中で8の字に回転させる
+        """
         self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
         return self.bno055.calibrated()
-        """BNO055を完全に静止させる。
-           BNO055を6方向に向けて静止させる
-           BNO055を空中で8の字に回転させる"""
         
     def compute_euler(self):
         self.bno055.iget(QUAT_DATA)
@@ -51,7 +53,7 @@ class BNO055Handler:
             self.heading += 360
 
 if __name__ == '__main__':
-    i2c_0 = I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))
+    i2c_0 = I2C(0, sda=Pin(20), scl=Pin(21))
     bno = BNO055Handler(i2c=i2c_0)
 
     while True:
