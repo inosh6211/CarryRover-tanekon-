@@ -1,5 +1,6 @@
 from machine import Pin, SPI
-import os, sdcard
+import os
+import sdcard
 
 FILE_NAME = "CarryRover"
 
