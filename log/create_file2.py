@@ -9,7 +9,7 @@ def create_file():
         file_name = f"/sd/{FILE_NAME}{counter}.txt"
         try:
             with open(file_name, "x") as f:
-                print(f"ファイル作成: {file_name}")
+                print(f"ファイル作成: {FILE_NAME}{counter}.txt")
                 return file_name
             
         except OSError as e:
