@@ -1,7 +1,7 @@
 # きゃりぃRover-tanekon-
 This repository is made for Tanegasima Rocket Contest 2025 Cansat department
 
-使用ライブラリ
+【使用ライブラリ】
 
 BNO055
 https://github.com/micropython-IMU/micropython-bno055
