@@ -9,7 +9,7 @@ updated_formats = set()
 gps_updated = 0
 lat = 0
 lon = 0
-GOAL_LAT, GOAL_LON = 35.7171709, 139.8232740
+GOAL_LAT,GOAL_LON = 35.9186300, 139.9081696  # 7号館
 
 def read_nmea():
     if uart0.any() > 0:
@@ -27,11 +27,12 @@ def get_lat_lon():
     global gps_updated, lat, lon
     if {'GNGGA', 'GNGSA'} <= updated_formats:
         updated_formats.clear()
-        if gps.pdop < 3 and gps.satellites_in_use > 3:
+        if gps.pdop < 5 and gps.satellites_in_use > 3:
             if lat != gps.latitude[0] or lon != gps.longitude[0]:
                 gps_updated = 1
                 lat = gps.latitude[0]
                 lon = gps.longitude[0]
+
     else:
         gps_updated = 0
 
@@ -59,6 +60,6 @@ if __name__ == '__main__':
         get_lat_lon()
         if gps_updated == 1:
             print(f"緯度: {lat:.7f}, 経度: {lon:.7f}")
-            print(f"距離: {calculate_distance():.2f} m, 方位角: {calculate_azimuth():.2f}°")
+            print(f"距離: {compute_distance():.2f} m, 方位角: {compute_azimuth():.2f}°")
         
         time.sleep(0.1)
