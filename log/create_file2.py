@@ -1,8 +1,12 @@
 from machine import Pin, SPI
 import os
 import sdcard
+import time
 
 FILE_NAME = "CarryRover"
+
+SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
+SPI1_CS = Pin(13, Pin.OUT)
 
 def create_file():
     counter = 0
@@ -10,19 +14,21 @@ def create_file():
         file_name = f"/sd/{FILE_NAME}{counter}.txt"
         try:
             with open(file_name, "x") as f:
-                print(f"ファイル作成: {FILE_NAME}{counter}.txt")
+                print(f"File created: {FILE_NAME}{counter}.txt")
                 return file_name
             
-        except OSError as e:
+        except OSError:
             counter += 1
 
 if __name__ == "__main__":
-    spi1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
-    sd = sdcard.SDCard(spi1, Pin(13))
-    
     try:
+        sd = sdcard.SDCard(SPI1, SPI1_CS)
         os.mount(sd, "/sd")
-        new_file = create_file()
+        file = create_file()
+        sd_state = True
+
+        with open(file, "a") as f:
+            f.write("Hello World!")
         
     except Exception as e:
-        print("SDカードが認識できません")
+        print(f"SD card not detected: {e}")
