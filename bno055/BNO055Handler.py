@@ -58,15 +58,11 @@ class BNO055Handler:
 
 if __name__ == '__main__':
     bno = BNO055Handler(i2c=I2C0)
-    
-    bno.compute_euler()
-    init_yaw = bno.yaw
 
     while True:
         bno.compute_euler()
-        error = init_yaw - bno.yaw
-        print(error)
-
+        bno.compute_heading()
+        print(f"roll:{bno.roll}, pitch:{bno.pitch}, yaw:{bno.yaw}")
+        print(f"heading:{bno.heading}")
 
         time.sleep(0.1)
-
