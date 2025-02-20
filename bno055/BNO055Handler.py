@@ -3,6 +3,9 @@ from bno055 import *
 import math
 import time
 
+I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
+
+
 class BNO055Handler:
     def __init__(self, i2c):
         self.i2c = i2c
@@ -52,18 +55,18 @@ class BNO055Handler:
         if self.heading < 0:
             self.heading += 360
 
+
 if __name__ == '__main__':
-    i2c_0 = I2C(0, sda=Pin(20), scl=Pin(21))
-    bno = BNO055Handler(i2c=i2c_0)
+    bno = BNO055Handler(i2c=I2C0)
+    
+    bno.compute_euler()
+    init_yaw = bno.yaw
 
     while True:
         bno.compute_euler()
-        bno.compute_heading()
-        print(bno.get_calibration_status())
-        print(f"Calibration Status sys:{bno.sys}, gyro{bno.gyro}, accel:{bno.accel}, mag:{bno.mag}")
-        print(f"Roll: {bno.roll:.2f}°")
-        print(f"Pitch: {bno.pitch:.2f}°")
-        print(f"Yaw: {bno.yaw:.2f}°")
-        print(f"Compass Heading: {bno.heading:.2f}°")
+        error = init_yaw - bno.yaw
+        print(error)
+
 
         time.sleep(0.1)
+
