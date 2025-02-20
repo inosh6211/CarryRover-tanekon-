@@ -7,6 +7,6 @@ p = BLESimplePeripheral(ble, name="RPpicoW")
 
 if __name__ == '__main__':
     while True:
-        while p.is_connected():
+        if p.is_connected():
             p.send("Hello World")
             time.sleep(1)
