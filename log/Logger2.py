@@ -91,4 +91,4 @@ if __name__ == "__main__":
     
     while True:
         log.message("Hello World")
-        time.sleep(0.1)
+        time.sleep(1)
