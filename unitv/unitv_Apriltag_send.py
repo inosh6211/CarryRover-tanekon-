@@ -43,8 +43,8 @@ TAG_SIZE = 87
 #ROI_X, ROI_Y = 0, 0
 #ROI_W, ROI_H = IMG_W * 3 // 4, IMG_H
 
-# 左1/5をカットして、右4/5だけ処理
-ROI_X = IMG_W // 5
+# 左1/6をカットして、右5/6だけ処理
+ROI_X = IMG_W // 6
 ROI_Y = 0
 ROI_W = IMG_W - ROI_X
 ROI_H = IMG_H
