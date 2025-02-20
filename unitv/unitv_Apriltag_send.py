@@ -36,12 +36,19 @@ TAG_SIZE = 87
 
 # ROI（AprilTag認識用のエリア）を設定
 #上1/4をカットして、下3/4だけ処理
-ROI_X, ROI_Y = 0, IMG_H // 4
-ROI_W, ROI_H = IMG_W, IMG_H - ROI_Y
+#ROI_X, ROI_Y = 0, IMG_H // 4
+#ROI_W, ROI_H = IMG_W, IMG_H - ROI_Y
 
 #右1/4をカットして、左3/4だけ処理
 #ROI_X, ROI_Y = 0, 0
 #ROI_W, ROI_H = IMG_W * 3 // 4, IMG_H
+
+# 左1/5をカットして、右4/5だけ処理
+ROI_X = IMG_W // 5
+ROI_Y = 0
+ROI_W = IMG_W - ROI_X
+ROI_H = IMG_H
+
 
 while True:
     img = sensor.snapshot()
