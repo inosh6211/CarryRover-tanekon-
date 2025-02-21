@@ -84,7 +84,7 @@ async def main():
     count = 0
     while True:
         log.message("Hello World " + str(count))
-        print("Main loop count:", count)
+        print("Main ", count)
         count += 1
         await uasyncio.sleep(0.1)
 
