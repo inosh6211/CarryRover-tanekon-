@@ -14,3 +14,5 @@ micropyGPS : https://github.com/inmcm/micropyGPS/tree/master
 sdcard : thonnyからパッケージをインストール
 
 Bluetooth : https://github.com/micropython/micropython/tree/master/examples/bluetooth
+
+queue : https://github.com/peterhinch/micropython-async/blob/master/v3/primitives/queue.py
