@@ -7,7 +7,7 @@ import time
 import os
 import bluetooth
 import sdcard
-import _thread
+import uasyncio
 
 PPR = 3              # PPR = CPR / 4
 GEAR_RATIO = 297.92  # ギア比
@@ -15,7 +15,7 @@ FREQ = 20            # タイマー割り込みの周波数[hz]
 KP_RPM = 0.2         # P制御の比例ゲイン
 
 EARTH_RADIUS = 6378137                       # 地球の半径(m)
-GOAL_LAT,GOAL_LON = 35.9186300, 139.9081696  # 7号館
+GOAL_LAT, GOAL_LON = 35.9186300, 139.9081696  # 7号館
 
 DEVICE_NAME = "RPpicoW"
 FILE_NAME = "CarryRover"
@@ -59,6 +59,8 @@ class Logger:
         self.sd_state = False
         self.ble = BLESimplePeripheral(bluetooth.BLE(), name=DEVICE_NAME)
         
+        self.log_queue = []
+        
         while not self.ble.is_connected():
             print("Waiting for Bluetooth connection...")
             time.sleep(1)
@@ -75,12 +77,9 @@ class Logger:
             if self.ble.is_connected():
                 self.ble.send(f"SD card not detected: {e}")
         time.sleep(1)
-
-        self.log_queue = []
-        self.log_lock = _thread.allocate_lock()
         
-        _thread.start_new_thread(self.log_thread, ())
-
+        uasyncio.create_task(self.logging_task())
+    
     def create_file(self):
         counter = 0
         while True:
@@ -94,19 +93,15 @@ class Logger:
                     return file_name
             except OSError:
                 counter += 1
-
-    def log_thread(self):
+    
+    async def logging_task(self):
         while True:
-            print(self.log_queue)
-            self.log_lock.acquire()
             if self.log_queue:
                 message = self.log_queue.pop(0)
-                self.log_lock.release()
                 self.write_log(message)
             else:
-                self.log_lock.release()
-                time.sleep(0.01)
-
+                await uasyncio.sleep(0.01)
+    
     def write_log(self, message):
         print(message)
         if self.ble.is_connected():
@@ -118,11 +113,9 @@ class Logger:
             except OSError as e:
                 self.sd_state = False
                 print(f"SD card write error: {e}")
-
+    
     def message(self, message):
-        self.log_lock.acquire()
         self.log_queue.append(message)
-        self.log_lock.release()
 
 
 class BNO055Handler:
@@ -382,14 +375,15 @@ class GPS:
                 
         return False
 
-def gps_guidance(goal_lat, goal_lon):
+
+async def gps_guidance(goal_lat, goal_lon):
     motor.enable_irq()
     motor.update_rpm(30, 30)
     
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
         print("Wait GPS signal...")
-        time.sleep(1)
+        await uasyncio.sleep(1)
             
     while True:
         gps.read_nmea()
@@ -413,4 +407,22 @@ def gps_guidance(goal_lat, goal_lon):
             motor.run(FORWARD)
             
         log.message(f"Distance:{gps.distance}, Azimuth:{azimuth_error}")
-        time.sleep(0.1)
+        await uasyncio.sleep(0.1)
+
+async def main():
+    gps_guidance(GOAL_LAT, GOAL_LON)
+
+
+if __name__ == '__main__':
+    try:
+        log = Logger(SPI1, SPI1_CS)
+        motor = Motor()
+        gps = GPS(UART0)
+        bno = BNO055Handler(i2c=I2C0)
+    
+        uasyncio.run(main())
+        
+    except KeyboardInterrupt:
+        motor.stop()
+        motor.disable_irq()
+        print("stopped!")
