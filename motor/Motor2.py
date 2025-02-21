@@ -5,13 +5,13 @@ import math
 PPR         = 3         # PPR = CPR / 4
 GEAR_RATIO  = 297.92    # ギア比
 FREQ        = 20        # タイマー割り込みの周波数 [Hz]
-KP_RPM      = 0.5       # P制御の比例ゲイン
+KP_RPM      = 0.2       # P制御の比例ゲイン
 
 # モーターの状態
 STOP       = 0
 FORWARD    = 1
-TURN_R = 2
-TURN_L  = 3
+TURN_R     = 2
+TURN_L     = 3
 BACKWARD   = 4
 
 # モータードライバピン設定
