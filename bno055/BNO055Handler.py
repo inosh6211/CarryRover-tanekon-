@@ -7,6 +7,11 @@ I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
 
 
 class BNO055Handler:
+    """
+    [キャリブレーション]
+    BNO055を完全に静止させる。
+    BNO055を空中で8の字に回転させる
+    """
     def __init__(self, i2c):
         self.i2c = i2c
         self.bno055 = BNO055(self.i2c)
@@ -15,14 +20,17 @@ class BNO055Handler:
         self.yaw = 0
         self.heading = 0
         
-    def get_calibration_status(self):
-        """
-        BNO055を完全に静止させる。
-        BNO055を6方向に向けて静止させる
-        BNO055を空中で8の字に回転させる
-        """
-        self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
-        return self.bno055.calibrated()
+        while True:
+            self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
+            
+            if self.gyro == 3 and self.mag == 3:
+                print("calibration")
+                break
+            
+            else:
+                print(f"gyro:{self.gyro}, mag:{self.mag}")
+                
+            time.sleep(1)
         
     def compute_euler(self):
         self.bno055.iget(QUAT_DATA)
