@@ -7,6 +7,13 @@ GEAR_RATIO  = 297.92    # ギア比
 FREQ        = 20        # タイマー割り込みの周波数 [Hz]
 KP_RPM      = 0.5       # P制御の比例ゲイン
 
+# モーターの状態
+STOP       = 0
+FORWARD    = 1
+TURN_R = 2
+TURN_L  = 3
+BACKWARD   = 4
+
 # モータードライバピン設定
 AIN1 = Pin(18, Pin.OUT)
 AIN2 = Pin(17, Pin.OUT)
@@ -24,12 +31,6 @@ OUTB_A = Pin(2, Pin.IN)
 OUTA_B = Pin(7, Pin.IN)
 OUTB_B = Pin(6, Pin.IN)
 
-# モーターの状態
-STOP       = 0
-FORWARD    = 1
-TURN_R = 2
-TURN_L  = 3
-BACKWARD   = 4
 
 class Motor:
     def __init__(self):
