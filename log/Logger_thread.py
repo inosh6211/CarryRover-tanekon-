@@ -12,7 +12,7 @@ SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
 SPI1_CS = Pin(13, Pin.OUT)
 
 
-class LogThread:
+class Logger:
     def __init__(self, spi, cs):
         self.spi = spi
         self.cs = cs
@@ -41,7 +41,7 @@ class LogThread:
         self.log_queue = []
         self.log_lock = _thread.allocate_lock()
         
-        _thread.start_new_thread(self._logging_thread, ())
+        _thread.start_new_thread(self.log_thread, ())
 
     def create_file(self):
         counter = 0
@@ -57,21 +57,20 @@ class LogThread:
             except OSError:
                 counter += 1
 
-    def _logging_thread(self):
+    def log_thread(self):
         while True:
             self.log_lock.acquire()
             if self.log_queue:
                 message = self.log_queue.pop(0)
                 self.log_lock.release()
-                self._write_log(message)
+                self.write_log(message)
             else:
                 self.log_lock.release()
                 time.sleep(0.01)
 
-    def _write_log(self, message):
+    def write_log(self, message):
         print(message)
-        if self.ble.is_connected():
-            self.ble.send(message)
+        self.ble.send(message)
         if self.sd_state:
             try:
                 with open(self.file_name, "a") as f:
@@ -80,15 +79,16 @@ class LogThread:
                 self.sd_state = False
                 print(f"SD card write error: {e}")
 
-    def log_message(self, message):
+    def message(self, message):
         self.log_lock.acquire()
         self.log_queue.append(message)
         self.log_lock.release()
 
 
 if __name__ == "__main__":
-    log = LogThread(SPI1, SPI1_CS)
+    log = Logger(SPI1, SPI1_CS)
+    time.sleep(3)
     
-    while True:
-        log.log_message("Hello World")
+    for i in range(1000):
+        log.message(str(i))
         time.sleep(0.1)
