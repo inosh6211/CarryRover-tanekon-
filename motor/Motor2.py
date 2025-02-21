@@ -27,8 +27,8 @@ OUTB_B = Pin(6, Pin.IN)
 # モーターの状態
 STOP       = 0
 FORWARD    = 1
-TURN_RIGHT = 2
-TURN_LEFT  = 3
+TURN_R = 2
+TURN_L  = 3
 BACKWARD   = 4
 
 class Motor:
@@ -91,7 +91,7 @@ class Motor:
             self.BIN2.off()
             self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
             
-        elif self.state == TURN_RIGHT:
+        elif self.state == TURN_R:
             self.AIN1.on()
             self.AIN2.off()
             self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
@@ -99,7 +99,7 @@ class Motor:
             self.BIN2.off()
             self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
             
-        elif self.state == TURN_LEFT:
+        elif self.state == TURN_L:
             self.AIN1.off()
             self.AIN2.on()
             self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
@@ -178,10 +178,10 @@ if __name__ == '__main__':
             motor.run(FORWARD)
             time.sleep(3)
             
-            motor.run(TURN_RIGHT)
+            motor.run(TURN_R)
             time.sleep(3)
             
-            motor.run(TURN_LEFT)
+            motor.run(TURN_L)
             time.sleep(3)
             
             motor.run(BACKWARD)
