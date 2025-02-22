@@ -23,7 +23,7 @@ fm.register(34, fm.fpioa.UART1_TX, force=True)
 fm.register(35, fm.fpioa.UART1_RX, force=True)
 uart = UART(UART.UART1, baudrate=115200, read_buf_len=1024)
 
-# カメラの初期
+# カメラの初期化
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.QVGA)
@@ -35,9 +35,10 @@ sensor.skip_frames(time=2000)
 red_threshold = (20, 130, 40, 80, 40, 80)
 orange_threshold = (30, 79, 102, 13, -12, 78)
 pink_threshold = (75, 97, 28, 7, -9, 8)
+green_threshold = (42, 63, -82, -49, 32, 103)
 
-# 起動確認用めっさげ
-print("UnitV Ready. Waiting for objects...")  
+# 起動確認用メッセージ
+print("UnitV Ready. Waiting for objects...")
 
 # カメラパラメータ
 FOCAL_LENGTH = 250
@@ -49,42 +50,44 @@ frame_count = 0
 log_interval = 10  # 何フレームごとにログを出力するか
 
 while True:
-  img = sensor.snapshot()
-  img.replace(vflip=False, hmirror=True, transpose=True)
+    img = sensor.snapshot()
+    img.replace(vflip=False, hmirror=True, transpose=True)
 
-  color_dict = {
-  "red": (red_threshold, (255, 0, 0)),
-  "orange": (orange_threshold, (255, 165, 0)),
-  "pink": (pink_threshold, (255, 192, 203))
-  }
+    color_dict = {
+        "red": (red_threshold, (255, 0, 0)),
+        "orange": (orange_threshold, (255, 165, 0)),
+        "pink": (pink_threshold, (255, 192, 203)),
+        "green": (green_threshold, (0, 255, 0))
+    }
 
-   detected_objects = []
-   for color_name, (threshold, draw_color) in color_dict.items():
-                    blobs = img.find_blobs([threshold], pixels_threshold=200, area_threshold=200, merge=True)
-     if blobs:
-        largest_blob = max(blobs, key=lambda b: b.pixels())
-        x, y, w, h = largest_blob.rect()
-        x_center = x + w // 2
-        y_center = y + h // 2
+    detected_objects = []
 
-        img.draw_rectangle(largest_blob.rect(), color=draw_color)
-        img.draw_cross(x_center, y_center, color=(0, 255, 0))
-        img.draw_string(x_center + 5, y_center, color_name, color=(255, 255, 255))
-        detected_objects.append(f"{color_name}:{x_center},{y_center}")
-       
-   if detected_objects:
-       message = ",".join(detected_objects) + "\n"
-       uart.write(message)
-     
-       # 一定フレームごとにログを表示
-       if frame_count % log_interval == 0:
-            print("Blob detected: {}".format(detected_objects))
-            print("Sending data: {}".format(message))
-   else:
-      uart.write("$0\n")
-      print("No object detected.")
-     
- lcd.display(img)
+    for color_name, (threshold, draw_color) in color_dict.items():
+        blobs = img.find_blobs([threshold], pixels_threshold=200, area_threshold=200, merge=True)
+        if blobs:
+            largest_blob = max(blobs, key=lambda b: b.pixels())
+            x, y, w, h = largest_blob.rect()
+            x_center = x + w // 2
+            y_center = y + h // 2
 
-frame_count += 1  # フレームカウンターを更新
-time.sleep(0.1)
+            img.draw_rectangle(largest_blob.rect(), color=draw_color)
+            img.draw_cross(x_center, y_center, color=(0, 255, 0))
+            img.draw_string(x_center + 5, y_center, color_name, color=(255, 255, 255))
+            detected_objects.append("{}: {}, {}".format(color_name, x_center, y_center))
+
+    if detected_objects:
+        message = ",".join(detected_objects) + "\n"
+        uart.write(message)
+
+        # 一定フレームごとにログを表示
+        if frame_count % log_interval == 0:
+            print("{}".format(detected_objects))
+            print("{}".format(message))
+    else:
+        uart.write("$0\n")
+        print("No object detected.")
+
+    lcd.display(img)
+
+    frame_count += 1  # フレームカウンターを更新
+    time.sleep(0.1)
