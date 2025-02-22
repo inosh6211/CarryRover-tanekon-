@@ -63,7 +63,7 @@ while True:
 
             if command == '0':
                 img = sensor.snapshot()
-                img.hmirror(True)
+                img.replace(vflip=False, hmirror=True, transpose=True)
 
                 color_dict = {
                     "red": (red_threshold, (255, 0, 0)),
@@ -101,7 +101,7 @@ while True:
 
             elif command == '1':
                 img = sensor.snapshot()
-                img.hmirror(0)
+                img.replace(vflip=False, hmirror=True, transpose=True)
 
                 tags = img.find_apriltags(roi=(ROI_X, ROI_Y, ROI_W, ROI_H), families=image.TAG36H11)
 
