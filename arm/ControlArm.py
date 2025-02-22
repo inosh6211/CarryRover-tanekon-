@@ -25,4 +25,7 @@ class ControlArm:
 
     def control_servo(self, index, angle):
         self.servos.position(index, degrees=angle)
-        self.angles[index] = angle 
+        self.angles[index] = angle
+
+if __name__ == "__main__":
+    arm = ControlArm(I2C1)
