@@ -46,7 +46,7 @@ while True:
         for tag in tags:
             id = tag.id()
             cx = tag.cx() + ROI_X
-            cy = tag.cy() +ROI_Y
+            cy = tag.cy() + ROI_Y
             tag_width = tag.w()
             tag_height = tag.h()
             
@@ -59,7 +59,7 @@ while True:
             else:
                 Z = -1  # 検出エラー
 
-            message = "Apriltag, ID:{}, X:{}, Y:{}".format(id, cx, cy)
+            message = "Apriltag, ID:{}, X:{}, Y:{}, distance:{}".format(id, cx, cy,Z)
             uart.write(message + "\n")
             print(message)  # コンソール出力
 
