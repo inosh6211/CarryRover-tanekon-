@@ -3,6 +3,8 @@ from micropyGPS import MicropyGPS
 import math
 import time
 
+UART0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
+
 EARTH_RADIUS = 6378137  # 地球の半径(m)
 GOAL_LAT,GOAL_LON = 35.9186300, 139.9081696  # 7号館
 
@@ -64,8 +66,7 @@ class GPS:
         return False
 
 if __name__ == '__main__':
-    uart0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
-    gps = GPS(uart0)
+    gps = GPS(UART0)
     
     while True:
         gps.read_nmea()
