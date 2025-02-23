@@ -1,10 +1,12 @@
 import machine
 import utime
+import math
 
 # UARTの初期設定（Pico W側、GPIO4=TX, GPIO5=RX）
 uart = machine.UART(1, baudrate=115200, tx=4, rx=5)
 
 # カメラキャリブレーション結果
+TAG_SIZE = 20
 FOCAL_LENGTH_X = 250.8939245
 FOCAL_LENGTH_Y = 250.6935671
 CENTER_X = 177.63441089
@@ -22,37 +24,45 @@ def undistort_point(x, y):
     return corrected_x, corrected_y
 
 while True:
-    if uart.any():  # 受信バッファにデータがあるか確認
+    if uart.any():  
         try:
-            # 1行のデータを受信
             line = uart.readline()
             if line:
-                # 文字列に変換（decode）して前後の空白や改行を削除
-                line = line.decode('utf-8').strip()
+                try:
+                    line = line.decode('utf-8').strip()
+                except UnicodeDecodeError:
+                    print("UART decoding error")
+                    continue
+            else:
+                continue
+            data = line.split(',')
 
-                # カンマ区切りで分割
-                data = line.split(',')
+            # AprilTag
+            if len(data) == 4 and data[0] != "Color":
+                tag_id = int(data[0])
+                cx, cy = float(data[1]), float(data[2])
+                distance = float(data[3])
+                
+                corrected_cx, corrected_cy = undistort_point(cx, cy)
+                corrected_distance = (FOCAL_LENGTH_X * TAG_SIZE) / corrected_cx
+                
+                pitch_rad = math.atan2(corrected_cy, corrected_distance)
+                pitch = math.degrees(pitch_rad)
+                yaw_rad = math.atan2(corrected_cx, corrected_distance)
+                yaw = math.degrees(yaw_rad)
+            
+                print(f"AprilTag ID: {tag_id}, Corrected X: {corrected_cx:.2f}, Corrected Y: {corrected_cy:.2f}, Distance: {corrected_distance:.2f}, Pitch: {pitch:.2f}, Yaw: {yaw:.2f}")
 
-                # データのフォーマットが正しいか確認
-                if len(data) == 6:
-                    tag_id = int(data[0])    # ID
-                    cx = float(data[1])      # X座標
-                    cy = float(data[2])      # Y座標
-                    distance = float(data[3])  # 距離
-                    pitch = float(data[4])     # ピッチ角
-                    yaw = float(data[5])       # ヨー角
-
-                    # 手動で歪み補正
-                    undistorted_cx, undistorted_cy = undistort_point(cx, cy)
-
-                    # 距離補正（焦点距離を考慮）
-                    corrected_distance = (FOCAL_LENGTH_X * 87) / undistorted_cx
-
-                    # 受信データの補正後の表示
-                    print(f"ID: {tag_id}, Corrected X: {undistorted_cx:.2f}, Corrected Y: {undistorted_cy:.2f}, "
-                          f"Corrected Distance: {corrected_distance:.2f}, Pitch: {pitch:.2f}, Yaw: {yaw:.2f}")
+            # 色認識データの処理
+            elif len(data) == 4 and data[0] == "Color":
+                color_name = data[1]
+                cx, cy = float(data[2]), float(data[3])
+                corrected_cx, corrected_cy = undistort_point(cx, cy)
+                
+                print(f"Detected Color: {color_name}, Corrected X: {corrected_cx:.2f}, Corrected Y: {corrected_cy:.2f}")
 
         except Exception as e:
             print(f"Error: {e}")
 
-    utime.sleep(0.1)  # 100ms待機
+    utime.sleep(0.1)
+
