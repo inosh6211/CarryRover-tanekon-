@@ -17,21 +17,28 @@ uart = UART(UART.UART1, baudrate=115200, read_buf_len=1024)
 
 # カメラ初期化
 sensor.reset()
-sensor.set_pixformat(sensor.RGB565)  
-sensor.set_framesize(sensor.QVGA)   
+sensor.set_pixformat(sensor.RGB565)
+sensor.set_framesize(sensor.QVGA)
 sensor.set_auto_gain(False)
-sensor.set_auto_whitebal(False)
+sensor.set_auto_whitebal(True)
 sensor.skip_frames(time=2000)
+#sensor.set_auto_exposure(True)  # 露出調整（白飛びを防ぐ）
+#sensor.set_contrast(2)  # コントラストを上げる
+#sensor.set_brightness(-2)  # 明るさを下げる
 
 #ROI設定
-ROI_X, ROI_Y, ROI_W, ROI_H = 80, 60, 160, 120  
+ROI_X, ROI_Y, ROI_W, ROI_H = 60, 40, 200, 200
+FOCAL_LENGTH = 250
+TAG_SIZE = 20
 
 # 色認識の閾値（LAB）
 color_dict = {
     "red": ((20, 130, 40, 80, 40, 80), (255, 0, 0)),
-    "yellow": ((30, 79, 102, 13, -12, 78), (255, 165, 0)),
-    "blue": ((75, 97, 28, 7, -9, 8), (255, 192, 203)),
-    "green": (((40, 61, -66, -26, -4, 60)), (0, 255, 0))
+    #"black": ((0, 15, -128, 127, -125, 127), (0, 0, 0)),
+    "blue": ((31, 41, -9, 23, -128, -21), (0, 0, 255)),
+    "green": ((40, 61, -66, -26, -4, 60), (0, 255, 0)),
+    "yellow":((69, 100, -21, -9, 25, 48),(255,255,0)),
+    #"white":((96, 100, -128, 127, -128, 127),(255,255,255))
 }
 
 while True:
@@ -44,27 +51,24 @@ while True:
 
     if tags:
         for tag in tags:
-            id = tag.id()
+            tag_id = tag.id()
             cx = tag.cx() + ROI_X
             cy = tag.cy() + ROI_Y
             tag_width = tag.w()
             tag_height = tag.h()
-            
+
             img.draw_rectangle(cx - 10, cy - 10, 20, 20, color=(255, 0, 0))
             img.draw_cross(cx, cy, color=(0, 255, 0))
 
             if tag_width > 0:
-                Z = (FOCAL_LENGTH * TAG_SIZE) / tag_width 
+                Z = (FOCAL_LENGTH * TAG_SIZE) / tag_width
             else:
-                Z = -1 
+                Z = -1
 
-            message = "Apriltag, ID:{}, X:{}, Y:{}, distance:{}".format(id, cx, cy,Z)
+            message = "{},{},{},{}".format(tag_id, cx, cy, Z)
             uart.write(message + "\n")
-            print(message) 
+            print(message)
 
-    else:
-        print("No AprilTag detected")
-        uart.write("Apriltag, None\n")
 
     # 色認識
     detected_objects = []
@@ -77,15 +81,9 @@ while True:
             img.draw_cross(x + w // 2, y + h // 2, color=(255, 255, 255))
             img.draw_string(x + 5, y, color_name, color=(255, 255, 255))
 
-            detected_objects.append("{}: X={}, Y={}".format(color_name, x + w // 2, y + h // 2))
-
-    if detected_objects:
-        message = "Color detected: " + ", ".join(detected_objects)
-        uart.write(message + "\n")
-        print(message)
-    else:
-        print("No color detected")
-        uart.write("Color, None\n")
+            message = "Color,{},{},{}".format(color_name, x + w // 2, y + h // 2)
+            uart.write(message + "\n")
+            print(message)
 
     lcd.display(img)
     time.sleep(0.1)
