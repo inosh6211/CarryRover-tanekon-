@@ -18,15 +18,15 @@ uart = UART(UART.UART1, baudrate=115200, read_buf_len=1024)
 # カメラ初期化
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)  
-sensor.set_framesize(sensor.QVGA)    # 320x240
+sensor.set_framesize(sensor.QVGA)   
 sensor.set_auto_gain(False)
 sensor.set_auto_whitebal(False)
 sensor.skip_frames(time=2000)
 
-# **ROI（関心領域）を中央部分に設定**
-ROI_X, ROI_Y, ROI_W, ROI_H = 80, 60, 160, 120  # 64K ピクセル以下
+#ROI設定
+ROI_X, ROI_Y, ROI_W, ROI_H = 80, 60, 160, 120  
 
-# **色認識の閾値（LAB）**
+# 色認識の閾値（LAB）
 color_dict = {
     "red": ((20, 130, 40, 80, 40, 80), (255, 0, 0)),
     "orange": ((30, 79, 102, 13, -12, 78), (255, 165, 0)),
@@ -38,7 +38,7 @@ while True:
     img = sensor.snapshot()
     img.replace(vflip=False, hmirror=True, transpose=True)
 
-    # **AprilTag 検出 (ROIのみ)**
+    # AprilTag
     roi_img = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
     tags = roi_img.find_apriltags(families=image.TAG36H11)
 
@@ -53,21 +53,20 @@ while True:
             img.draw_rectangle(cx - 10, cy - 10, 20, 20, color=(255, 0, 0))
             img.draw_cross(cx, cy, color=(0, 255, 0))
 
-             # Z の計算（三角測量）
             if tag_width > 0:
-                Z = (FOCAL_LENGTH * TAG_SIZE) / tag_width  # mm単位
+                Z = (FOCAL_LENGTH * TAG_SIZE) / tag_width 
             else:
-                Z = -1  # 検出エラー
+                Z = -1 
 
             message = "Apriltag, ID:{}, X:{}, Y:{}, distance:{}".format(id, cx, cy,Z)
             uart.write(message + "\n")
-            print(message)  # コンソール出力
+            print(message) 
 
     else:
         print("No AprilTag detected")
         uart.write("Apriltag, None\n")
 
-    # **色認識（画像全体）**
+    # 色認識
     detected_objects = []
     for color_name, (threshold, draw_color) in color_dict.items():
         blobs = img.find_blobs([threshold], pixels_threshold=200, area_threshold=200, merge=True)
@@ -83,11 +82,10 @@ while True:
     if detected_objects:
         message = "Color detected: " + ", ".join(detected_objects)
         uart.write(message + "\n")
-        print(message)  # コンソール出力
+        print(message)
     else:
         print("No color detected")
         uart.write("Color, None\n")
 
-    # **LCD に画像を表示**
     lcd.display(img)
     time.sleep(0.1)
