@@ -21,6 +21,7 @@ class Logger:
         self.sd_state = False
         self.ble = BLESimplePeripheral(bluetooth.BLE(), name=DEVICE_NAME)
         
+        time.sleep(1)
         while not self.ble.is_connected():
             print("Waiting for Bluetooth connection...")
             time.sleep(1)
@@ -37,9 +38,10 @@ class Logger:
             if self.ble.is_connected():
                 self.ble.send(f"SD card not detected: {e}")
         time.sleep(1)
-
+        
         self.log_queue = []
         self.log_lock = _thread.allocate_lock()
+        self.running = True
         
         _thread.start_new_thread(self.log_thread, ())
 
@@ -58,7 +60,7 @@ class Logger:
                 counter += 1
 
     def log_thread(self):
-        while True:
+        while self.running:
             self.log_lock.acquire()
             if self.log_queue:
                 message = self.log_queue.pop(0)
@@ -66,7 +68,8 @@ class Logger:
                 self.write_log(message)
             else:
                 self.log_lock.release()
-                time.sleep(0.01)
+                time.sleep(0.1)
+        print("Logger thread stopped.")
 
     def write_log(self, message):
         print(message)
@@ -87,8 +90,10 @@ class Logger:
 
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
-    time.sleep(3)
+    time.sleep(1)
     
-    for i in range(1000):
-        log.message(str(i))
-        time.sleep(0.1)
+    try:
+        for i in range(1000):
+            log.message("Log message: " + str(i))
+            print("Main: " + str(i))
+            time.sleep(1)
