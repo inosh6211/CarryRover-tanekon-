@@ -45,9 +45,19 @@ while True:
     if tags:
         for tag in tags:
             id = tag.id()
-            cx, cy = tag.cx() + ROI_X, tag.cy() + ROI_Y  # ROI の補正
+            cx = tag.cx() + ROI_X
+            cy = tag.cy() +ROI_Y
+            tag_width = tag.w()
+            tag_height = tag.h()
+            
             img.draw_rectangle(cx - 10, cy - 10, 20, 20, color=(255, 0, 0))
             img.draw_cross(cx, cy, color=(0, 255, 0))
+
+             # Z の計算（三角測量）
+            if tag_width > 0:
+                Z = (FOCAL_LENGTH * TAG_SIZE) / tag_width  # mm単位
+            else:
+                Z = -1  # 検出エラー
 
             message = "Apriltag, ID:{}, X:{}, Y:{}".format(id, cx, cy)
             uart.write(message + "\n")
