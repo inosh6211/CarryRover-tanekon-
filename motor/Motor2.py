@@ -5,7 +5,7 @@ import math
 PPR         = 3         # PPR = CPR / 4
 GEAR_RATIO  = 297.92    # ギア比
 FREQ        = 20        # タイマー割り込みの周波数 [Hz]
-KP_RPM      = 0.2       # P制御の比例ゲイン
+KP_RPM      = 0.5       # P制御の比例ゲイン
 
 # モーターの状態
 STOP       = 0
@@ -191,7 +191,7 @@ if __name__ == '__main__':
             motor.stop()
             time.sleep(3)
 
-    except KeyboardInterrupt:
+    finally:
         motor.stop()
         motor.disable_irq()
         print("stopped!")
