@@ -18,7 +18,7 @@ SPI1_CS = Pin(13, Pin.OUT)
 UART0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
 UART1 = UART(1, baudrate=115200, tx=4, rx=5)
 
-fusing_gpio = Pin(8, Pin.OUT, value = 0) # 溶断回路のピン設定
+FUSING_GPIO = Pin(8, Pin.OUT, value = 0) # 溶断回路のピン設定
 
 # モータードライバピン設定
 AIN1 = Pin(18, Pin.OUT)
@@ -454,9 +454,9 @@ def landing():
         print(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
 
 def fusing():
-    fusing_gpio.on()
+    FUSING_GPIO.on()
     time.sleep(0.3)
-    fusing_gpio.off()
+    FUSING_GPIO.off()
     log.sa_write("溶断完了")
  
 def avoid_para():
