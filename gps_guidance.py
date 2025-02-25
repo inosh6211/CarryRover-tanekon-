@@ -7,7 +7,6 @@ import time
 import os
 import bluetooth
 import sdcard
-import uasyncio
 
 PPR = 3              # PPR = CPR / 4
 GEAR_RATIO = 297.92  # ギア比
@@ -15,7 +14,7 @@ FREQ = 20            # タイマー割り込みの周波数[hz]
 KP_RPM = 0.2         # P制御の比例ゲイン
 
 EARTH_RADIUS = 6378137                       # 地球の半径(m)
-GOAL_LAT, GOAL_LON = 35.9186300, 139.9081696  # 7号館
+GOAL_LAT, GOAL_LON = 35.9180565, 139.9086761 # 閲覧室
 
 DEVICE_NAME = "RPpicoW"
 FILE_NAME = "CarryRover"
@@ -43,11 +42,11 @@ OUTA_B = Pin(7, Pin.IN)
 OUTB_B = Pin(6, Pin.IN)
 
 # モーターの状態
-STOP       = 0
-FORWARD    = 1
-TURN_RIGHT = 2
-TURN_LEFT  = 3
-BACKWARD   = 4
+STOP     = 0
+FORWARD  = 1
+TURN_R   = 2
+TURN_L   = 3
+BACKWARD = 4
 
 
 class Logger:
@@ -58,15 +57,13 @@ class Logger:
         self.file_name = None
         self.sd_state = False
         self.ble = BLESimplePeripheral(bluetooth.BLE(), name=DEVICE_NAME)
-        
-        self.log_queue = []
-        
+
         while not self.ble.is_connected():
             print("Waiting for Bluetooth connection...")
             time.sleep(1)
+
         print("Bluetooth connected")
         time.sleep(1)
-        
         try:
             self.sd = sdcard.SDCard(self.spi, self.cs)
             os.mount(self.sd, "/sd")
@@ -76,10 +73,9 @@ class Logger:
             print(f"SD card not detected: {e}")
             if self.ble.is_connected():
                 self.ble.send(f"SD card not detected: {e}")
+
         time.sleep(1)
-        
-        uasyncio.create_task(self.logging_task())
-    
+
     def create_file(self):
         counter = 0
         while True:
@@ -87,36 +83,31 @@ class Logger:
             try:
                 with open(file_name, "x") as f:
                     print(f"File created: {FILE_NAME}{counter}.txt")
+                    
                     if self.ble.is_connected():
                         self.ble.send(f"File created: {FILE_NAME}{counter}.txt")
                     self.file_name = file_name
                     return file_name
             except OSError:
                 counter += 1
-    
-    async def logging_task(self):
-        while True:
-            if self.log_queue:
-                message = self.log_queue.pop(0)
-                self.write_log(message)
-            else:
-                await uasyncio.sleep(0.01)
-    
-    def write_log(self, message):
+
+    def log(self, message):
+        t0 = time.ticks_ms()
+        motor.disable_irq()
         print(message)
         if self.ble.is_connected():
             self.ble.send(message)
-        if self.sd_state:
-            try:
-                with open(self.file_name, "a") as f:
-                    f.write(message + "\n")
-            except OSError as e:
-                self.sd_state = False
-                print(f"SD card write error: {e}")
-    
-    def message(self, message):
-        self.log_queue.append(message)
-
+            
+        try:
+            with open("/sd/data.txt", "a") as f:
+                f.write(message + "\n")
+        except OSError as e:
+            print("SD card write error:", e)
+            
+        t1 = time.ticks_ms()
+        dt = time.ticks_diff(t1, t0)
+        motor.adjust_start_time(dt)
+        motor.enable_irq()
 
 class BNO055Handler:
     """
@@ -190,7 +181,7 @@ class Motor:
         self.OUTA_B = OUTA_B
         self.OUTB_B = OUTB_B
 
-        # モーター制御用変数の設定
+        # 制御用変数
         self.rate_a = 0
         self.rate_b = 0
         self.target_rpm_a = 0
@@ -202,7 +193,7 @@ class Motor:
         self.start_time = time.ticks_ms()
         self.state = 0
 
-        # エンコーダの割り込み設定（OUTA_A と OUTA_B に設定）
+        # エンコーダ割り込みの設定（OUTA_A と OUTA_B に設定）
         self.OUTA_A.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_a)
         self.OUTA_B.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_b)
 
@@ -222,7 +213,7 @@ class Motor:
         else:
             self.direction_b = -1
         self.pulse_count_b += self.direction_b
-        
+
     def run(self, state):
         if self.state != state:
             self.stop()
@@ -235,23 +226,23 @@ class Motor:
             self.BIN1.on()
             self.BIN2.off()
             self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-            
-        elif self.state == TURN_RIGHT:
+
+        elif self.state == TURN_R:
             self.AIN1.on()
             self.AIN2.off()
             self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
             self.BIN1.on()
             self.BIN2.off()
             self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-            
-        elif self.state == TURN_LEFT:
+
+        elif self.state == TURN_L:
             self.AIN1.off()
             self.AIN2.on()
             self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
             self.BIN1.off()
             self.BIN2.on()
             self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
-            
+
         elif self.state == BACKWARD:
             self.AIN1.on()
             self.AIN2.off()
@@ -272,7 +263,6 @@ class Motor:
     def compute_rpm(self, pulse_count, interval):
         if interval <= 0:
             return 0
-        
         rpm = abs((pulse_count * 60) / (PPR * GEAR_RATIO * interval))
         return rpm
 
@@ -281,19 +271,18 @@ class Motor:
             self.start_time = time.ticks_ms()
             self.pulse_count_a = 0
             self.pulse_count_b = 0
-            
         else:
             now = time.ticks_ms()
-            interval = (now - self.start_time) / 1000
+            interval = time.ticks_diff(now, self.start_time) / 1000
             rpm_a = self.compute_rpm(self.pulse_count_a, interval)
             rpm_b = self.compute_rpm(self.pulse_count_b, interval)
             self.rate_a += KP_RPM * (self.target_rpm_a - rpm_a)
             self.rate_b += KP_RPM * (self.target_rpm_b - rpm_b)
             self.rate_a = min(max(self.rate_a, 0), 100)
             self.rate_b = min(max(self.rate_b, 0), 100)
-            
+
             self.run(self.state)
-            
+
             self.start_time = now
             self.pulse_count_a = 0
             self.pulse_count_b = 0
@@ -302,16 +291,18 @@ class Motor:
         self.target_rpm_a = target_rpm_a
         self.target_rpm_b = target_rpm_b
 
+    def adjust_start_time(self, dt):
+        self.start_time = time.ticks_add(self.start_time, dt)
+
     def enable_irq(self):
         self.OUTA_A.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_a)
         self.OUTA_B.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_b)
         self.timer.init(mode=Timer.PERIODIC, freq=FREQ, callback=self.update_speed)
-        self.start_time = time.ticks_ms()
 
     def disable_irq(self):
-        self.timer.deinit()
         self.OUTA_A.irq(handler=None)
         self.OUTA_B.irq(handler=None)
+        self.timer.deinit()
         
 
 class GPS:
@@ -376,42 +367,39 @@ class GPS:
         return False
 
 
-async def gps_guidance(goal_lat, goal_lon):
+def gps_guidance(goal_lat, goal_lon):
     motor.enable_irq()
-    motor.update_rpm(30, 30)
     
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
         print("Wait GPS signal...")
-        await uasyncio.sleep(1)
+        time.sleep(1)
             
     while True:
         gps.read_nmea()
-        if gps.update_data(goal_lat, goal_lon):
-            if gps.distance <= 5:
-                motor.stop()
-                print("Stoped")
-                break
-            
+        gps.update_data(goal_lat, goal_lon)
         bno.compute_heading()
         bno.compute_euler()
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
+        log.log(f"Distance:{gps.distance}, Azimuth:{azimuth_error}")
+        
+        if gps.distance <= 5:
+            motor.stop()
+            break
         
         if azimuth_error > 20:
-            motor.run(TURN_RIGHT)
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)
             
         elif azimuth_error < -20:
-            motor.run(TURN_LEFT)
+            motor.update_rpm(10, 10)
+            motor.run(TURN_L)
         
         else:
+            motor.update_rpm(30, 30)
             motor.run(FORWARD)
-            
-        log.message(f"Distance:{gps.distance}, Azimuth:{azimuth_error}")
-        await uasyncio.sleep(0.1)
-
-async def main():
-    gps_guidance(GOAL_LAT, GOAL_LON)
-
+    
+        time.sleep(0.1)
 
 if __name__ == '__main__':
     try:
@@ -419,10 +407,11 @@ if __name__ == '__main__':
         motor = Motor()
         gps = GPS(UART0)
         bno = BNO055Handler(i2c=I2C0)
-    
-        uasyncio.run(main())
         
-    except KeyboardInterrupt:
+        gps_guidance(GOAL_LAT, GOAL_LON)
+        
+    finally:
         motor.stop()
         motor.disable_irq()
         print("stopped!")
+        time.sleep(1)
