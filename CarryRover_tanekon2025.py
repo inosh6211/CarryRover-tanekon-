@@ -10,7 +10,7 @@ import math
 import bluetooth
 import sdcard
 
-# シリアル通信のピン設定
+# シリアル通信のピン設8定
 I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
 I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
@@ -68,10 +68,10 @@ class Logger:
         self.p = BLESimplePeripheral(self.ble, name=DEVICE_NAME)
 
         while not self.p.is_connected():
-            print("Bluetoothの接続を待っています、、、")
+            print("Waiting for Bluetooth connection...")
             time.sleep(1)
 
-        self.print("Bluetoothが接続されました")
+        self.print("Bluetooth connected!")
             
         time.sleep(1)
         try:
@@ -80,7 +80,7 @@ class Logger:
             self.create_file()
             self.sd_state = True
         except Exception as e:
-            self.print(f"SDカードが検出できませんでした: {e}")
+            self.print(f"SD card not detected: {e}")
 
         time.sleep(1)
 
@@ -90,7 +90,7 @@ class Logger:
             file_name = f"/sd/{FILE_NAME}{counter}.txt"
             try:
                 with open(file_name, "x") as f:
-                    self.print(f"ファイル作成完了: {FILE_NAME}{counter}.txt")         
+                    self.print(f"File created: {FILE_NAME}{counter}.txt")         
                     self.file_name = file_name
                     return file_name
             except OSError:
@@ -112,7 +112,7 @@ class Logger:
             with open("/sd/data.txt", "a") as f:
                 f.write(message + "\n")
         except OSError as e:
-            self.print(f"SDカードに書き込みできません: {e}")
+            self.print(f"SD card not detected: {e}")
             
         t1 = time.ticks_ms()
         dt = time.ticks_diff(t1, t0)
@@ -138,11 +138,11 @@ class BNO055Handler:
             self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
             
             if self.gyro == 3 and self.mag == 3:
-                log.print("BNO055 キャリブレーション完了")
+                log.print("BNO055 calibration completed")
                 break
             
             else:
-                log.print(f"キャリブレーション gyro:{self.gyro}, mag:{self.mag}")
+                log.print(f"BNO055 calibration gyro:{self.gyro}, mag:{self.mag}")
                 
             time.sleep(1)
         
@@ -321,12 +321,12 @@ class GPS:
         self.distance = 0
         self.azimuth = 0
         
-        while self.upadate_data(0, 0):
+        while not self.update_data(0, 0):
             self.read_nmea()
-            log.print("GPSデータの受信を待っています、、、")
+            log.print("Waiting for GPS signal...")
             time.sleep(1)
             
-        log.print("GPSデータを受信しました")
+        log.print("GPS signal received!")
 
     def read_nmea(self):
         if self.uart.any() > 0:
@@ -339,7 +339,7 @@ class GPS:
                     if gps_format:
                         self.updated_formats.add(gps_format)
             except Exception as e:
-                log.print(f"エラー: {e}")
+                log.print(f"Error: {e}")
 
     def compute_distance(self, goal_lat, goal_lon):
         lat0, lon0, lat1, lon1 = map(math.radians, [self.lat, self.lon, goal_lat, goal_lon])
@@ -372,10 +372,10 @@ class GPS:
                             self.compute_azimuth(goal_lat, goal_lon)
                             return True
                 except IndexError as e:
-                    log.print(f"エラー: {e}")
+                    log.print(f"Error: {e}")
             
             else:
-                log.print("GPSの精度が足りていません")
+                log.print("GPS low accuracy")
                 
         return False
 
@@ -396,10 +396,10 @@ def start():
         imu.compute_euler()
         
         if abs(imu.roll) > 45 and abs(imu.roll) < 135 and diff_pressure < -0.5:
-            log.sd_write("ミッションスタート")
+            log.sd_write("Mission start!")
             break
         else:
-            log.sd_write(f"ロール角: {bno.roll}, 気圧変化: {diff_pressure}")
+            log.sd_write(f"Roll angle: {bno.roll}, pressure change: {diff_pressure}")
         
         time.sleep(0.1)
 
@@ -407,7 +407,6 @@ def released():
     count = 0
     
     while True:
-        time.sleep(0.1)
         bno.compute_euler()
         roll = bno.roll
         
@@ -417,10 +416,11 @@ def released():
           count = 0
           
         if count >= 5:
-            log.sd_write("投下完了")
+            log.sd_write("Released")
             break
         
-        log.sd_write(f"ロール角: {roll}")
+        log.sd_write(f"Roll angle: {roll}")
+        time.sleep(0.1)
 
 def landing():
     count = 0
@@ -448,10 +448,10 @@ def landing():
         elapsed_time = (now - start_time)
         
         if count == 3 or elapsed_time > 30:
-            log.sd_write("着地完了")
+            log.sd_write("Landing")
             break
         
-        print(f"ロール角変化: {diff_roll}, 気圧変化: {diff_pressure}")
+        print(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
 
 def fusing():
     fusing_gpio.on()
@@ -471,7 +471,7 @@ def gps_guidance(goal_lat, goal_lon):
         bno.compute_heading()
         bno.compute_euler()
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
-        log.sd_write(f"距離:{gps.distance}, 方位角:{azimuth_error}")
+        log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
         
         if gps.distance <= 5:
             motor.stop()
@@ -508,7 +508,7 @@ if __name__ == "__main__":
     motor = Motor()
     gps = GPS(UART0)
     
-    log.sd_wite("セットアップ完了")
+    log.sd_write("Setup completed")
     
     try:
         start()
