@@ -72,4 +72,5 @@ if __name__ == '__main__':
         gps.read_nmea()
         if gps.update_data(GOAL_LAT, GOAL_LON):
             print(f"距離: {gps.distance:.7f} m, 方位角: {gps.azimuth:.7f}°")
-        time.sleep(0.1)
+            
+        time.sleep(0.5)
