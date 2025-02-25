@@ -17,6 +17,8 @@ SPI1_CS = Pin(13, Pin.OUT)
 UART0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
 UART1 = """カメラのピン設定を書く"""
 
+fusing_gpio = Pin(8, Pin.OUT, value = 0) # 溶断回路のピン設定
+
 # モータードライバピン設定
 AIN1 = Pin(18, Pin.OUT)
 AIN2 = Pin(17, Pin.OUT)
@@ -439,6 +441,11 @@ def landing():
         
         print(f"diff_roll:{diff_roll}, diff_pressure:{diff_pressure}")
 
+def fusing():
+    fusing_gpio.on()
+    time.sleep(0.3)
+    fusing_gpio.off()
+ 
 def avoid_para():
     """パラ回避の関数を作る"""
 
@@ -515,4 +522,3 @@ if __name__ == "__main__":
         motor.disable_irq()
         time.sleep(1)
     
-
