@@ -1,5 +1,6 @@
 from machine import Pin, PWM, I2C, SPI, UART, Timer
 from bno055 import *
+from bme280 import BME280
 from micropyGPS import MicropyGPS
 from servo import Servos
 from ble_simple_peripheral import BLESimplePeripheral
