@@ -486,7 +486,7 @@ def gps_guidance(goal_lat, goal_lon):
 def image_guidance():
     """画像誘導の関数を作る"""
 
-def supply_material():
+def collect_material():
     """物資回収の関数を書く"""
 
 def place_material():
@@ -512,13 +512,13 @@ if __name__ == "__main__":
         gps_guidance(STATION1_LAT, STATION1_LON)
         """画像誘導(地上局１)
            アームによる物資設置
-         　アームによる物資回収"""
+           アームによる物資回収"""
         gps_guidance(STATION0_LAT, STATION0_LON)
         """画像誘導(地上局0)
-         　アームによる物資設置"""
+           アームによる物資設置"""
         
     finally:
         motor.stop()
         motor.disable_irq()
         time.sleep(1)
-    
+
