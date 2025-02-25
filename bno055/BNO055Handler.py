@@ -24,11 +24,11 @@ class BNO055Handler:
             self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
             
             if self.gyro == 3 and self.mag == 3:
-                print("BNO055 calibration completed")
+                print("BNO055 キャリブレーション完了")
                 break
             
             else:
-                print(f"Calibration gyro:{self.gyro}, mag:{self.mag}")
+                print(f"キャリブレーション gyro:{self.gyro}, mag:{self.mag}")
                 
             time.sleep(1)
         
