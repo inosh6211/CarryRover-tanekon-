@@ -12,11 +12,11 @@ import sdcard
 
 # シリアル通信のピン設定
 I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
-I2C1 = """アームのピン設定を書く"""
+I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
 SPI1_CS = Pin(13, Pin.OUT)
 UART0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
-UART1 = """カメラのピン設定を書く"""
+UART1 = UART(1, baudrate=115200, tx=4, rx=5)
 
 fusing_gpio = Pin(8, Pin.OUT, value = 0) # 溶断回路のピン設定
 
@@ -64,9 +64,10 @@ class Logger:
         self.sd = None
         self.file_name = None
         self.sd_state = False
-        self.ble = BLESimplePeripheral(bluetooth.BLE(), name=DEVICE_NAME)
+        self.ble = bluetooth.BLE()
+        self.p = BLESimplePeripheral(self.ble, name=DEVICE_NAME)
 
-        while not self.ble.is_connected():
+        while not self.p.is_connected():
             print("Bluetoothの接続を待っています、、、")
             time.sleep(1)
 
@@ -97,15 +98,15 @@ class Logger:
                 
     def print(self, message):
         print(message)
-        if self.ble.is_connected():
-            self.ble.send(message)
+        if self.p.is_connected():
+            self.p.send(message)
 
     def sd_write(self, message):
         t0 = time.ticks_ms()
         motor.disable_irq()
         print(message)
-        if self.ble.is_connected():
-            self.ble.send(message)
+        if self.p.is_connected():
+            self.p.send(message)
             
         try:
             with open("/sd/data.txt", "a") as f:
@@ -506,12 +507,10 @@ if __name__ == "__main__":
     bme = BME280(i2c=I2C0)
     motor = Motor()
     gps = GPS(UART0)
-    arm = """アームのクラス"""
     
     log.sd_wite("セットアップ完了")
     
     try:
-        """
         start()
         relaesed()
         landing()
@@ -527,7 +526,6 @@ if __name__ == "__main__":
         gps_guidance(STATION0_LAT, STATION0_LON)
         # 画像誘導(地上局0)
         # アームによる物資設置
-        """
         
     finally:
         motor.stop()
