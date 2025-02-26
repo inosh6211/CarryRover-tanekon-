@@ -6,16 +6,16 @@ from fpioa_manager import fm
 from machine import UART
 import lcd
 
-# LCD初期化
+#LCD初期化
 lcd.init()
 lcd.rotation(2)
 
-# UART設定
+#UART設定
 fm.register(34, fm.fpioa.UART1_TX, force=True)
 fm.register(35, fm.fpioa.UART1_RX, force=True)
 uart = UART(UART.UART1, baudrate=115200, read_buf_len=1024)
 
-# カメラ初期化
+#カメラ初期化
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.QVGA)
@@ -28,10 +28,10 @@ sensor.skip_frames(time=2000)
 
 #ROI設定
 ROI_X, ROI_Y, ROI_W, ROI_H = 60, 40, 200, 200
-FOCAL_LENGTH = 250
-TAG_SIZE = 20
+FOCAL_LENGTH_PX = 210.70
+TAG_SIZE = 30
 
-# 色認識の閾値（LAB）
+#色認識の閾値（LAB）
 color_dict = {
     "red": ((20, 130, 40, 80, 40, 80), (255, 0, 0)),
     #"black": ((0, 15, -128, 127, -125, 127), (0, 0, 0)),
@@ -45,32 +45,35 @@ while True:
     img = sensor.snapshot()
     img.replace(vflip=False, hmirror=True, transpose=True)
 
-    # AprilTag
+    #AprilTag
     roi_img = img.copy(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
-    tags = roi_img.find_apriltags(families=image.TAG36H11)
+    tags = roi_img.find_apriltags(families=image.TAG16H5)
 
     if tags:
         for tag in tags:
             tag_id = tag.id()
-            cx = tag.cx() + ROI_X
-            cy = tag.cy() + ROI_Y
-            tag_width = tag.w()
-            tag_height = tag.h()
+            cx = tag.cx() - (ROI_W / 2)
+            cy = tag.cy() - (ROI_H / 2)
+            c0, c1, c2, c3 = tag.corners()
+            tag_width = math.sqrt((c0[0] - c1[0])**2 + (c0[1] - c1[1])**2)
+            tag_height = math.sqrt((c0[0] - c3[0])**2 + (c0[1] - c3[1])**2)
+            tag_size_avg = (tag_width + tag_height) / 2
 
-            img.draw_rectangle(cx - 10, cy - 10, 20, 20, color=(255, 0, 0))
-            img.draw_cross(cx, cy, color=(0, 255, 0))
+            #img.draw_rectangle(cx - 10, cy - 10, 20, 20, color=(255, 0, 0))
+            #img.draw_cross(cx, cy, color=(0, 255, 0))
 
-            if tag_width > 0:
-                Z = (FOCAL_LENGTH * TAG_SIZE) / tag_width
+            if tag_size_avg > 0:
+                Z = (FOCAL_LENGTH_PX * TAG_SIZE) / tag_size_avg  # mm単位
             else:
                 Z = -1
+
 
             message = "{},{},{},{}".format(tag_id, cx, cy, Z)
             uart.write(message + "\n")
             print(message)
 
 
-    # 色認識
+    #色認識
     detected_objects = []
     for color_name, (threshold, draw_color) in color_dict.items():
         blobs = img.find_blobs([threshold], pixels_threshold=200, area_threshold=200, merge=True)
@@ -87,3 +90,4 @@ while True:
 
     lcd.display(img)
     time.sleep(0.1)
+
