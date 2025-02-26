@@ -1,3 +1,9 @@
+"""
+・機体が反転した時のプログラム
+・GPS誘導中に目的地の地上局を発見したときに画像誘導に移行する
+・GPS誘導中に目的地とは別の地上局を発見したときに避ける
+・GPS誘導中に物資の保持を検知する
+"""
 from machine import Pin, PWM, I2C, SPI, UART, Timer
 from bno055 import *
 from bme280 import BME280
@@ -16,7 +22,7 @@ I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
 SPI1_CS = Pin(13, Pin.OUT)
 UART0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
-UART1 = UART(1, baudrate=115200, tx=4, rx=5)
+UART1 = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
 
 FUSING_GPIO = Pin(8, Pin.OUT, value = 0) # 溶断回路のピン設定
 
@@ -50,6 +56,7 @@ TURN_L     = 3
 BACKWARD   = 4
 
 EARTH_RADIUS = 6378137  # 地球の半径(m)
+PDOP = 5                # PDOPの閾値
 STATION0_LAT, STATION0_LON = 35.9180565, 139.9086761  # 地上局0の経度緯度
 STATION1_LAT, STATION0_LON = 35.9180565, 139.9086761  # 地上局１の経度緯度
 
@@ -71,7 +78,7 @@ class Logger:
             print("Waiting for Bluetooth connection...")
             time.sleep(1)
 
-        self.print("Bluetooth connected!")
+        self.ble_print("Bluetooth connected!")
             
         time.sleep(1)
         try:
@@ -80,7 +87,7 @@ class Logger:
             self.create_file()
             self.sd_state = True
         except Exception as e:
-            self.print(f"SD card not detected: {e}")
+            self.ble_print(f"SD card not detected: {e}")
 
         time.sleep(1)
 
@@ -90,13 +97,13 @@ class Logger:
             file_name = f"/sd/{FILE_NAME}{counter}.txt"
             try:
                 with open(file_name, "x") as f:
-                    self.print(f"File created: {FILE_NAME}{counter}.txt")         
+                    self.ble_print(f"File created: {FILE_NAME}{counter}.txt")         
                     self.file_name = file_name
-                    return file_name
+                    break
             except OSError:
                 counter += 1
                 
-    def print(self, message):
+    def ble_print(self, message):
         print(message)
         if self.p.is_connected():
             self.p.send(message)
@@ -109,10 +116,10 @@ class Logger:
             self.p.send(message)
             
         try:
-            with open("/sd/data.txt", "a") as f:
+            with open(self.file_name, "a") as f:
                 f.write(message + "\n")
         except OSError as e:
-            self.print(f"SD card not detected: {e}")
+            self.ble_print(f"SD card not detected: {e}")
             
         t1 = time.ticks_ms()
         dt = time.ticks_diff(t1, t0)
@@ -138,11 +145,11 @@ class BNO055Handler:
             self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
             
             if self.gyro == 3 and self.mag == 3:
-                log.print("BNO055 calibration completed")
+                log.ble_print("BNO055 calibration completed")
                 break
             
             else:
-                log.print(f"BNO055 calibration gyro:{self.gyro}, mag:{self.mag}")
+                log.ble_print(f"BNO055 calibration gyro:{self.gyro}, mag:{self.mag}")
                 
             time.sleep(1)
         
@@ -323,10 +330,10 @@ class GPS:
         
         while not self.update_data(0, 0):
             self.read_nmea()
-            log.print("Waiting for GPS signal...")
+            log.ble_print("Waiting for GPS signal...")
             time.sleep(1)
             
-        log.print("GPS signal received!")
+        log.ble_print("GPS signal received!")
 
     def read_nmea(self):
         if self.uart.any() > 0:
@@ -339,7 +346,7 @@ class GPS:
                     if gps_format:
                         self.updated_formats.add(gps_format)
             except Exception as e:
-                log.print(f"Error: {e}")
+                log.ble_print(f"Error: {e}")
 
     def compute_distance(self, goal_lat, goal_lon):
         lat0, lon0, lat1, lon1 = map(math.radians, [self.lat, self.lon, goal_lat, goal_lon])
@@ -360,7 +367,7 @@ class GPS:
     def update_data(self, goal_lat, goal_lon):
         if {'GNGGA', 'GNGSA'} <= self.updated_formats:
             self.updated_formats.clear()
-            if self.micropygps.pdop < 3 and self.micropygps.satellites_in_use > 3:
+            if self.micropygps.pdop < PDOP and self.micropygps.satellites_in_use > 3:
                 try:
                     lat = self.micropygps.latitude[0]
                     lon = self.micropygps.longitude[0]
@@ -372,10 +379,11 @@ class GPS:
                             self.compute_azimuth(goal_lat, goal_lon)
                             return True
                 except IndexError as e:
-                    log.print(f"Error: {e}")
+                    log.ble_print(f"Error: {e}")
             
             else:
-                log.print("GPS low accuracy")
+                log.ble_print("GPS low accuracy")
+                log.ble_print(f"PDOP: {self.micropygps.pdop}, Satellites: {self.micropygps.satellites_in_use}")
                 
         return False
 
@@ -390,12 +398,11 @@ def start():
     init_pressure = bme.pressure()
     
     while True:
-        pressure = bme.pressure()
-        current_pressure = pressure
+        current_pressure = bme.pressure()
         diff_pressure = current_pressure - init_pressure
-        imu.compute_euler()
+        bno.compute_euler()
         
-        if abs(imu.roll) > 45 and abs(imu.roll) < 135 and diff_pressure < -0.5:
+        if abs(bno.roll) > 45 and abs(bno.roll) < 135 and diff_pressure < -1:
             log.sd_write("Mission start!")
             break
         else:
@@ -430,7 +437,6 @@ def landing():
     start_time = time.time()
 
     while True:
-        time.sleep(1)
         bno.compute_euler()
         current_roll = bno.roll
         current_pressure = bme.pressure()
@@ -439,7 +445,7 @@ def landing():
         init_roll = current_roll
         init_pressure = current_pressure
         
-        if abs(diff_roll) < 0.1 and abs(diff_pressure) < 0.1:
+        if abs(diff_roll) < 1 and abs(diff_pressure) < 0.1:
           count += 1
         else:
           count = 0
@@ -447,23 +453,29 @@ def landing():
         now = time.time()
         elapsed_time = (now - start_time)
         
-        if count == 3 or elapsed_time > 30:
+        if count == 5 or elapsed_time > 30:
             log.sd_write("Landing")
             break
         
-        print(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
+        log.sd_write(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
+        time.sleep(0.5)
 
 def fusing():
     FUSING_GPIO.on()
     time.sleep(0.3)
     FUSING_GPIO.off()
-    log.sa_write("溶断完了")
- 
+    log.sd_write("Fusing completed")
+
 def avoid_para():
     """パラ回避の関数を作る"""
 
 def gps_guidance(goal_lat, goal_lon):
     motor.enable_irq()
+    
+    while not gps.update_data(goal_lat, goal_lon):
+        gps.read_nmea()
+        log.ble_print("Waiting for GPS signal...")
+        time.sleep(1)
             
     while True:
         gps.read_nmea()
@@ -474,6 +486,7 @@ def gps_guidance(goal_lat, goal_lon):
         log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
         
         if gps.distance <= 5:
+            log.sd_write("GPS_guidance completed")
             motor.stop()
             break
         
@@ -531,4 +544,5 @@ if __name__ == "__main__":
         motor.stop()
         motor.disable_irq()
         time.sleep(1)
+
 
