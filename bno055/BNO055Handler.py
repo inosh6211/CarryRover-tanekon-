@@ -19,16 +19,19 @@ class BNO055Handler:
         self.pitch = 0
         self.yaw = 0
         self.heading = 0
+        self.accel_x = 0
+        self.accel_y = 0
+        self.accel_z = 0
         
         while True:
-            self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
+            sys, gyro, accel, mag = self.bno055.cal_status()
             
-            if self.gyro == 3 and self.mag == 3:
+            if gyro == 3 and mag == 3:
                 print("BNO055 キャリブレーション完了")
                 break
             
             else:
-                print(f"キャリブレーション gyro:{self.gyro}, mag:{self.mag}")
+                print(f"キャリブレーション gyro:{gyro}, mag:{mag}")
                 
             time.sleep(1)
         
@@ -62,6 +65,9 @@ class BNO055Handler:
         self.heading = math.atan2(mag_y, mag_x) * 180 / math.pi
         if self.heading < 0:
             self.heading += 360
+    
+    def get_accel(self):
+        self.accel_x, self.accel_y, self.accel_z = self.bno055.accel()
 
 
 if __name__ == '__main__':
@@ -70,7 +76,9 @@ if __name__ == '__main__':
     while True:
         bno.compute_euler()
         bno.compute_heading()
-        print(f"roll:{bno.roll}, pitch:{bno.pitch}, yaw:{bno.yaw}")
-        print(f"heading:{bno.heading}")
+        bno.get_accel()
+        print(f"roll: {bno.roll}, pitch: {bno.pitch}, yaw: {bno.yaw}")
+        print(f"heading: {bno.heading}")
+        print(f"accel_z: {bno.accel_z}")
 
         time.sleep(0.1)
