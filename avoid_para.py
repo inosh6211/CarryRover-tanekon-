@@ -2,6 +2,8 @@ from machine import UART,Pin, PWM, Timer
 import time
 import math
 
+time.sleep(2)
+
 PPR         = 3         # PPR = CPR / 4
 GEAR_RATIO  = 297.92    # ギア比
 FREQ        = 20        # タイマー割り込みの周波数 [Hz]
