@@ -33,7 +33,8 @@ class Camera:
         self.tag_cy = []
         self.tag_pitch = []
         self.tag_yaw = []
-        self.tag_distance = []      
+        self.tag_distance = []
+        self.tag_pitch = []
             
     #歪み補正
     def undistort_point(self, x, y):
@@ -58,24 +59,13 @@ class Camera:
         
         return data
 
-    def compute_tag_data(self, c0, c1, c2, c3):
-        tag_width = math.sqrt((c0 - c1)**2 + (c0 - c1)**2)
-        tag_height = math.sqrt((c0 - c3)**2 + (c0 - c3)**2)
-        tag_size_avg = (tag_width + tag_height) / 2
-        if tag_size_avg > 0:
-            tag_distance = (FOCAL_LENGTH_PX * TAG_SIZE) / tag_size_avg  # mm単位
-        else:
-            tag_distance = -1
-        
-        return tag_pitch, tag_yaw, tag_distance
-
     """
     0: Red, 1: Blue, 2:Yellow
     """
     def read_color(self, color):
         self.uart.write(f"0, {color}\n")
         data = self.read_camera()
-        if len(data) == 5 and data[0] == "Color":
+        if len(data) == 4 and data[0] == "Color":
             cx, cy = float(data[color + 1]), (data[color + 2])
             self.color_cx, self.color_cy = undistort_point(cx, cy)
             self.color_pixels = float(data[color + 3])
@@ -87,11 +77,11 @@ class Camera:
     def read_tag(self, tag_id):
         self.uart.write("1, {tag_id}\n")    
         data = read_camera()
-        if len(data) == 7 and data[0] == "Tag":
+        if len(data) == 5  and data[0] == "Tag":
             cx, cy = float(data[tag_id + 1]), float(data[tag_id + 2])
             self.tag_cx, self.tag_cy = undistort_point(cx, cy)
-            c0, c1, c2, c3 = float(data[tag_id + 3]), float(data[tag_id + 4]), float(data[tag_id + 5]), float(data[tag_id + 6])
-            self.tag_pitch, self.tag_yaw, self.tag_distance = compute_tag_info(c0, c1, c2, c3)
+            self.tag_distance = float(data[tag_id + 3])
+            self.tag_pitch = float(data[tag_id + 4])
             
             return True
         
