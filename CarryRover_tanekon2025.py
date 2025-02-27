@@ -63,6 +63,18 @@ STATION1_LAT, STATION0_LON = 35.9180565, 139.9086761  # 地上局１の経度緯
 DEVICE_NAME = "RPpicoW"   # Bluetoorhのデバイス名
 FILE_NAME = "CarryRover"  # ログを保存するファイル名
 
+#キャリブレーション結果
+TAG_SIZE = 30
+FOCAL_LENGTH_X = 210.70  
+FOCAL_LENGTH_Y = 210.70
+
+CENTER_X = 100 # ROI_W / 2
+CENTER_Y = 100 # ROI_H / 2
+DIST_COEFFS = [-0.34155103, 0.25499062, -0.00517389, -0.00731524, -0.17990041]
+
+FOCAL_LENGTH_PX = 210.70
+TAG_SIZE = 30
+
 
 class Logger:
     def __init__(self, spi, cs):
@@ -140,16 +152,19 @@ class BNO055Handler:
         self.pitch = 0
         self.yaw = 0
         self.heading = 0
+        self.accel_x = 0
+        self.accel_y = 0
+        self.accel_z = 0
         
         while True:
-            self.sys, self.gyro, self.accel, self.mag = self.bno055.cal_status()
+            sys, gyro, accel, mag = self.bno055.cal_status()
             
-            if self.gyro == 3 and self.mag == 3:
-                log.ble_print("BNO055 calibration completed")
+            if gyro == 3 and mag == 3:
+                print("BNO055 キャリブレーション完了")
                 break
             
             else:
-                log.ble_print(f"BNO055 calibration gyro:{self.gyro}, mag:{self.mag}")
+                print(f"キャリブレーション gyro:{gyro}, mag:{mag}")
                 
             time.sleep(1)
         
@@ -183,7 +198,10 @@ class BNO055Handler:
         self.heading = math.atan2(mag_y, mag_x) * 180 / math.pi
         if self.heading < 0:
             self.heading += 360
-
+    
+    def get_accel(self):
+        self.accel_x, self.accel_y, self.accel_z = self.bno055.accel()
+        
 
 class Motor:
     def __init__(self):
@@ -388,11 +406,64 @@ class GPS:
         return False
 
 
+class Camera:
+    def __init__(self,uart):
+        self.uart = uart
+        self.color_pixels = []
+        self.color_cx = []
+        self.color_cy = []
+        self.tag_detected = []
+        self.tag_cx = []
+        self.tag_cy = []
+        self.tag_distance = []
+        self.tag_pitch = []
+            
+    #歪み補正
+    def undistort_point(self, x, y):
+        norm_x = (x - CENTER_X) / FOCAL_LENGTH_X
+        norm_y = (y - CENTER_Y) / FOCAL_LENGTH_Y
+        r2 = norm_x**2 + norm_y**2
+        radial_distortion = 1 + DIST_COEFFS[0] * r2 + DIST_COEFFS[1] * (r2**2) + DIST_COEFFS[4] * (r2**3)
+        
+        corrected_x = norm_x * radial_distortion * FOCAL_LENGTH_X + CENTER_X
+        corrected_y = norm_y * radial_distortion * FOCAL_LENGTH_Y + CENTER_Y
+      
+        return corrected_x, corrected_y
+
+    def read_camera(self):
+        while not self.uart.any():
+            time.sleep(0.01)
+                
+        while uart1.any() > 0:
+            message += self.uart.read().decode('utf-8').strip()
+            
+        data = message.split(',')
+        
+        return data
+
+    def read_color(self):
+        self.uart.write("0\n")
+        data = self.read_camera()
+        if data[0] == "c":
+            for color in range(3):
+                self.color_pixels = float(data[color + 1])
+                cx, cy = float(data[color + 2]), (data[color + 3])
+                self.color_cx, self.color_cy = undistort_point(cx, cy)
+
+    def read_tag(self):
+        self.uart.write("1\n")    
+        data = read_camera()
+        if data[0] == "t":
+            for tag_id in range(10):
+                self.tag_detected = int(data[tag_id + 1])
+                cx, cy = float(data[tag_id + 2]), float(data[tag_id + 3])
+                self.tag_cx, self.tag_cy = undistort_point(cx, cy)
+                self.tag_distance = float(data[tag_id + 4])
+                self.tag_pitch = float(data[tag_id + 5])
+
+
 class ControlArm:
     """アームのクラスを作る"""
-
-def read_camera():
-    """カメラからのデータ取得の関数を作る"""
     
 def start():
     init_pressure = bme.pressure()
