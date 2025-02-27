@@ -17,11 +17,6 @@ DIST_COEFFS = [-0.34155103, 0.25499062, -0.00517389, -0.00731524, -0.17990041]
 FOCAL_LENGTH_PX = 210.70
 TAG_SIZE = 30
 
-# 色
-BLUE = 0
-RED = 1
-YELLOW = 2
-
 
 class Camera:
     def __init__(self,uart):
@@ -31,8 +26,6 @@ class Camera:
         self.color_pixels = []
         self.tag_cx = []
         self.tag_cy = []
-        self.tag_pitch = []
-        self.tag_yaw = []
         self.tag_distance = []
         self.tag_pitch = []
             
@@ -48,7 +41,7 @@ class Camera:
       
         return corrected_x, corrected_y
 
-    def rad_camera(self):
+    def read_camera(self):
         while not self.uart.any():
             time.sleep(0.01)
                 
@@ -59,37 +52,36 @@ class Camera:
         
         return data
 
-    """
-    0: Red, 1: Blue, 2:Yellow
-    """
-    def read_color(self, color):
-        self.uart.write(f"0, {color}\n")
+    def read_color(self):
+        self.uart.write("0\n")
         data = self.read_camera()
-        if len(data) == 4 and data[0] == "Color":
+        if data[0] == "c":
+            for color in range(3):
             cx, cy = float(data[color + 1]), (data[color + 2])
             self.color_cx, self.color_cy = undistort_point(cx, cy)
             self.color_pixels = float(data[color + 3])
-            
-            return True
-        
-        return False
 
-    def read_tag(self, tag_id):
-        self.uart.write("1, {tag_id}\n")    
+    def read_tag(self):
+        self.uart.write("1\n")    
         data = read_camera()
-        if len(data) == 5  and data[0] == "Tag":
+        if data[0] == "t":
+            for tag_id in range(10):
             cx, cy = float(data[tag_id + 1]), float(data[tag_id + 2])
             self.tag_cx, self.tag_cy = undistort_point(cx, cy)
             self.tag_distance = float(data[tag_id + 3])
             self.tag_pitch = float(data[tag_id + 4])
-            
-            return True
-        
-        return False
         
 
 if __name__ == "__main__":
     camera = Camera(UART1)
-    if read_color(BLUE):
-        print(f"{camera.color_cx[BLUE]}, {camera.color_cy[BLUE]}")
-
+    
+    while True:
+        camera.read_color()
+        camra.read_tag()
+        for i in range(3):
+            print(f"camera.color_cx = [i], self.color_cy = [i], self.color_pixels = []")
+            
+        for j in range(10):
+            print(camera.tag_cx = [j], camera.tag_cy = [j], camera.tag_distance = [j], camera.tag_pitch = [j])
+        
+        time.sleep(0.1)
