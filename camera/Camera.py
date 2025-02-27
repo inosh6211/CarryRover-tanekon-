@@ -21,9 +21,10 @@ TAG_SIZE = 30
 class Camera:
     def __init__(self,uart):
         self.uart = uart
+        self.color_pixels = []
         self.color_cx = []
         self.color_cy = []
-        self.color_pixels = []
+        self.tag_detected = []
         self.tag_cx = []
         self.tag_cy = []
         self.tag_distance = []
@@ -57,19 +58,20 @@ class Camera:
         data = self.read_camera()
         if data[0] == "c":
             for color in range(3):
-            cx, cy = float(data[color + 1]), (data[color + 2])
-            self.color_cx, self.color_cy = undistort_point(cx, cy)
-            self.color_pixels = float(data[color + 3])
+                self.color_pixels = float(data[color + 1])
+                cx, cy = float(data[color + 2]), (data[color + 3])
+                self.color_cx, self.color_cy = undistort_point(cx, cy)
 
     def read_tag(self):
         self.uart.write("1\n")    
         data = read_camera()
         if data[0] == "t":
             for tag_id in range(10):
-            cx, cy = float(data[tag_id + 1]), float(data[tag_id + 2])
-            self.tag_cx, self.tag_cy = undistort_point(cx, cy)
-            self.tag_distance = float(data[tag_id + 3])
-            self.tag_pitch = float(data[tag_id + 4])
+                self.tag_detected = int(data[tag_id + 1])
+                cx, cy = float(data[tag_id + 2]), float(data[tag_id + 3])
+                self.tag_cx, self.tag_cy = undistort_point(cx, cy)
+                self.tag_distance = float(data[tag_id + 4])
+                self.tag_pitch = float(data[tag_id + 5])
         
 
 if __name__ == "__main__":
@@ -79,9 +81,11 @@ if __name__ == "__main__":
         camera.read_color()
         camra.read_tag()
         for i in range(3):
-            print(f"camera.color_cx = [i], self.color_cy = [i], self.color_pixels = []")
+            if camera.color_pixels:
+                print(camera.color_pixels = [i], camera.color_cx = [i], self.color_cy = [i])
             
         for j in range(10):
-            print(camera.tag_cx = [j], camera.tag_cy = [j], camera.tag_distance = [j], camera.tag_pitch = [j])
+            if camera.tag_detected:
+                print(camera.tag_cx = [j], camera.tag_cy = [j], camera.tag_distance = [j], camera.tag_pitch = [j])
         
         time.sleep(0.1)
