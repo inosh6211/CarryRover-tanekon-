@@ -49,8 +49,8 @@ while True:
                             data_t[5 * tag.id() + 2] = tag.cy() - (ROI_H / 2)
                             data_t[5 * tag.id() + 3] = tag.z_translation()
                             data_t[5 * tag.id() + 4] = tag.y_rotation()
-                message = ",".join(map(str, data_t))
-                uart.write("t," + message + "\n")
-                print("t," + message + "\n")
+            message = ",".join(map(str, data_t))
+            uart.write("t," + message + "\n")
+            print("t," + message + "\n")
     
     time.sleep(0.1)
