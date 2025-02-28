@@ -80,18 +80,17 @@ class Camera:
 
 if __name__ == "__main__":
     camera = Camera(UART1)
-    time.sleep(5)
+    time.sleep(2)
     
     while True:
         camera.read_color()
         for i in range(3):
-            if camera.color_pixels > 0:
-                print(camera.color_pixels[i], camera.color_cx[i], camera.color_cy[i])
-
+            print(i, camera.color_pixels[i], camera.color_cx[i], camera.color_cy[i])
+        
         camera.read_tag()    
         for j in range(10):
-            if camera.tag_detected[j] == 1:
-                print(camera.tag_cx[j], camera.tag_cy[j], camera.tag_distance[j], camera.tag_pitch[j])
+            print(j, camera.tag_cx[j], camera.tag_cy[j], camera.tag_distance[j], camera.tag_pitch[j])
+        
 
         time.sleep(0.1)
 
