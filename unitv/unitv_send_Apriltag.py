@@ -52,8 +52,3 @@ while True:
             print("t," + message + "\n")
     
     time.sleep(0.01)
-            message = ",".join(map(str, data_t))
-            uart.write("t," + message + "\n")
-            print("t," + message + "\n")
-    
-    time.sleep(0.1)
