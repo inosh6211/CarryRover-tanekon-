@@ -2,36 +2,11 @@ from machine import Pin, UART
 import time
 import math
 
-# UARTの初期設定（Pico W側、GPIO4=TX, GPIO5=RX）
 UART1 = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
-
-# キャリブレーション結果
-TAG_SIZE = 30
-FOCAL_LENGTH_X = 210.70  
-FOCAL_LENGTH_Y = 210.70
-
-CENTER_X = 100  # ROI_W / 2
-CENTER_Y = 100  # ROI_H / 2
-DIST_COEFFS = [-0.34155103, 0.25499062, -0.00517389, -0.00731524, -0.17990041]
-
-FOCAL_LENGTH_PX = 210.70
-TAG_SIZE = 30
 
 class Camera:
     def __init__(self, uart):
         self.uart = uart
-            
-    # 歪み補正
-    def undistort_point(self, x, y):
-        norm_x = (x - CENTER_X) / FOCAL_LENGTH_X
-        norm_y = (y - CENTER_Y) / FOCAL_LENGTH_Y
-        r2 = norm_x**2 + norm_y**2
-        radial_distortion = 1 + DIST_COEFFS[0] * r2 + DIST_COEFFS[1] * (r2**2) + DIST_COEFFS[4] * (r2**3)
-        
-        corrected_x = norm_x * radial_distortion * FOCAL_LENGTH_X + CENTER_X
-        corrected_y = norm_y * radial_distortion * FOCAL_LENGTH_Y + CENTER_Y
-      
-        return corrected_x, corrected_y
 
     def read_camera(self):
         message = ""
