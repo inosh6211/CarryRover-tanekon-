@@ -66,7 +66,7 @@ while True:
 
         if data == "t":
             data_t = [0] * 50
-            tags = img.find_apriltags(families=image.TAG16H5,roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
+            tags = img.find_apriltags(roi=(ROI_X, ROI_Y, ROI_W, ROI_H))
             if tags:
                 for tag in tags:
                     data_t[5 * tag.id() + 0] = 1
