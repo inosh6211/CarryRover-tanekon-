@@ -4,7 +4,7 @@ import math
 
 UART1 = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
 
-class Camera:
+class CameraReceiver:
     def __init__(self, uart):
         self.uart = uart
 
