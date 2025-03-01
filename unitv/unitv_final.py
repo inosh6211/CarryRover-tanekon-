@@ -70,8 +70,8 @@ while True:
             if tags:
                 for tag in tags:
                     data_t[5 * tag.id() + 0] = 1
-                    data_t[5 * tag.id() + 1] = tag.cx() - (ROI_W / 2)
-                    data_t[5 * tag.id() + 2] = tag.cy() - (ROI_H / 2)
+                    data_t[5 * tag.id() + 1] = tag.cx()
+                    data_t[5 * tag.id() + 2] = tag.cy()
                     data_t[5 * tag.id() + 3] = tag.z_translation()
                     data_t[5 * tag.id() + 4] = tag.y_rotation()
             message = ",".join(map(str, data_t))
