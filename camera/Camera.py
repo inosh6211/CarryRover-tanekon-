@@ -54,7 +54,7 @@ class CameraReceiver:
 
 
 if __name__ == "__main__":
-    camera = Camera(UART1)
+    camera = CameraReceiver(UART1)
     time.sleep(2)
     
     while True:
