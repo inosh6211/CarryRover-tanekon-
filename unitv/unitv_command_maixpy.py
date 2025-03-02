@@ -15,7 +15,7 @@ sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.QVGA)
 sensor.set_auto_gain(False)
-sensor.set_auto_whitebal(False,rgb_gain_db = (50, 75, 90))
+sensor.set_auto_whitebal(False,rgb_gain_db = (50, 75, 90))    # 現地調整
 sensor.set_auto_exposure(-2)    # 露光(現地調整)
 sensor.set_brightness(False)    # 輝度
 sensor.set_contrast(False)      # コントラスト
