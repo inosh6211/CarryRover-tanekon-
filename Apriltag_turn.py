@@ -468,56 +468,7 @@ class CameraReceiver:
 
 
 
-def forward_to_Apriltag_mm(m):
-    
-    while True:
-        if uart.any():  # 受信バッファにデータがあるか確認#tagを見つけられなければここでループ
-            try:
-                line = uart.readline()
-                if line:
-                    try:
-                        line = line.decode('utf-8').strip()
-                    except UnicodeDecodeError:
-                        print("UART decoding error")
-                        #continue
-                #else:
-                    #continue
-                data = line.split(',')
 
-                # AprilTag
-                if len(data) == 4 and data[0] != "NoTag":
-                    tag_id = int(data[0])
-                    cx, cy = float(data[1]), float(data[2])
-                    distance = float(data[3])
-                    
-                    corrected_cx, corrected_cy = undistort_point(cx, cy)
-                    corrected_distance = (FOCAL_LENGTH_X * TAG_SIZE) / corrected_cx
-                    
-                    pitch_rad = math.atan2(corrected_cy, corrected_distance)
-                    pitch = math.degrees(pitch_rad)
-                    yaw_rad = math.atan2(corrected_cx, corrected_distance)
-                    yaw = math.degrees(yaw_rad)
-                
-                    print(f"AprilTag ID: {tag_id}, Corrected X: {corrected_cx:.2f}, Corrected Y: {corrected_cy:.2f}, Distance: {corrected_distance:.2f}, Pitch: {pitch:.2f}, Yaw: {yaw:.2f}")
-
-                # 色認識データの処理
-                elif len(data) == 4 and data[0] == "Color" and data[1] != "None":
-                    color_name = data[1]
-                    cx, cy = float(data[2]), float(data[3])
-                    corrected_cx, corrected_cy = undistort_point(cx, cy)
-                    
-                    print(f"Detected Color: {color_name}, Corrected X: {corrected_cx:.2f}, Corrected Y: {corrected_cy:.2f}")
-                    motor.run(FORWARD)
-                    if corrected_distance <= m:
-                        print(f"april")
-                        motor.stop()
-                        break
-            except Exception as e:
-                print(f"Error: {e}")
-                
-
-
-        utime.sleep(0.1)  # 100ms待機
 
 
 
