@@ -1,32 +1,29 @@
-from machine import Pin, PWM, Timer
+from machine import UART, Pin, PWM, Timer
 import time
 import math
 import utime
 from bno055 import *
 from ble_simple_peripheral import BLESimplePeripheral
-#import bluetooth
+import bluetooth
 import time
 i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))
-"""ble = bluetooth.BLE()
-p = BLESimplePeripheral(ble, name="RPpicoW")"""
-time.sleep(1)
-
 KP_YAW=0.3#ここで比例定数を決める
-
+time.sleep(2)
 
 bno = BNO055(i2c)#bno,eulerの準備
 
+UART1 = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
 
 PPR         = 3         # PPR = CPR / 4
 GEAR_RATIO  = 297.92    # ギア比
 FREQ        = 20        # タイマー割り込みの周波数 [Hz]
-KP_RPM      = 0.1       # P制御の比例ゲイン
+KP_RPM      = 0.5       # P制御の比例ゲイン
 
 # モーターの状態
 STOP       = 0
 FORWARD    = 1
-TURN_R = 2
-TURN_L  = 3
+TURN_R     = 2
+TURN_L     = 3
 BACKWARD   = 4
 
 # モータードライバピン設定
@@ -46,18 +43,6 @@ OUTB_A = Pin(2, Pin.IN)
 OUTA_B = Pin(7, Pin.IN)
 OUTB_B = Pin(6, Pin.IN)
 
-
-#UARTの初期設定（Pico W側、GPIO4=TX, GPIO5=RX）
-uart = machine.UART(1, baudrate=115200, tx=4, rx=5)
-
-#キャリブレーション結果
-TAG_SIZE = 30
-FOCAL_LENGTH_X = 210.70  
-FOCAL_LENGTH_Y = 210.70
-
-CENTER_X = 100 # ROI_W / 2
-CENTER_Y = 100 # ROI_H / 2
-DIST_COEFFS = [-0.34155103, 0.25499062, -0.00517389, -0.00731524, -0.17990041]
 
 class Motor:
     def __init__(self):
@@ -195,6 +180,55 @@ class Motor:
         self.OUTA_A.irq(handler=None)
         self.OUTA_B.irq(handler=None)
 
+UART1 = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
+
+class CameraReceiver:
+    def __init__(self, uart):
+        self.uart = uart
+
+    def read_camera(self):
+        message = ""
+        while not self.uart.any():
+            time.sleep(0.01)
+                
+        while self.uart.any() > 0: 
+            message += self.uart.read().decode('utf-8').strip()
+            
+        data = message.split(',')
+        
+        return data
+
+    def read_color(self):
+        self.uart.write("c\n")
+        data = self.read_camera()
+        
+        if data[0] == "c":
+            self.color_pixels = []
+            self.color_cx = []
+            self.color_cy = []
+            
+            for color in range(3):
+                self.color_pixels.append(float(data[color*3 + 1]))
+                self.color_cx.append(float(data[color*3 + 2]))
+                self.color_cy.append(float(data[color*3 + 3]))
+
+    def read_tag(self):
+        self.uart.write("t\n")    
+        data = self.read_camera()
+        
+        if data[0] == "t":
+            self.tag_detected = []
+            self.tag_cx = []
+            self.tag_cy = []
+            self.tag_distance = []
+            self.tag_pitch = []
+            
+            for tag_id in range(10):
+                self.tag_detected.append(int(data[tag_id*5 + 1]))
+                self.tag_cx.append(float(data[tag_id*5 + 2]))
+                self.tag_cy.append(float(data[tag_id*5 + 3]))
+                self.tag_distance.append(float(data[tag_id*5 + 4]))
+                self.tag_pitch.append(float(data[tag_id*5 + 5]))
 
 
 def euler():
@@ -316,15 +350,7 @@ def soutai_turn_left_180():
             
            
 
-# UARTの初期設定（Pico W側、GPIO4=TX, GPIO5=RX）
-uart = machine.UART(1, baudrate=115200, tx=4, rx=5)
 
-# カメラキャリブレーション結果
-FOCAL_LENGTH_X = 250.8939245
-FOCAL_LENGTH_Y = 250.6935671
-CENTER_X = 177.63441089
-CENTER_Y = 94.85498261
-DIST_COEFFS = [-0.34382066, -0.34788885, 0.01396397, -0.01068236, 0.71124219]
 
 
 
@@ -361,18 +387,86 @@ def straight_forward_t(t):
                 
         time.sleep(0.01)
 
-#歪み補正
-def undistort_point(x, y):
-    norm_x = (x - CENTER_X) / FOCAL_LENGTH_X
-    norm_y = (y - CENTER_Y) / FOCAL_LENGTH_Y
-    r2 = norm_x**2 + norm_y**2
-    radial_distortion = 1 + DIST_COEFFS[0] * r2 + DIST_COEFFS[1] * (r2**2) + DIST_COEFFS[4] * (r2**3)
-    
-    corrected_x = norm_x * radial_distortion * FOCAL_LENGTH_X + CENTER_X
-    corrected_y = norm_y * radial_distortion * FOCAL_LENGTH_Y + CENTER_Y
+class CameraReceiver:
+    def __init__(self, uart):
+        self.uart = uart
+        
+        time.sleep(2)
+        
+        """
+        # UnitVとの接続確認
+        while True:
+            self.uart.write("1\n")
+            
+            while not self.uart.any():
+                print("Waiting for Unitv signal...")
+                time.sleep(0.5)
+                
+            message = self.uart.readline().decode('utf-8').strip()
+            
+            if message == "1":
+                print("Unitv connected")
+                break
+            
+            time.sleep(0.1)"""
 
+
+    def read_camera(self):
+        message = ""
+        
+        while True:
+            if self.uart.any():
+                char = self.uart.read(1).decode('utf-8')
+                if char == "\n":
+                    break
+                message += char
+                
+                time.sleep(0.01)
+            
+        return message.split(',')
+
+    def read_color(self):
+        # 0: Red, 1: Blue, 2: Purple
+        self.color_pixels = [0] * 3
+        self.color_cx = [0] * 3
+        self.color_cy = [0] * 3
+        
+        self.uart.write("C\n")
+        data = self.read_camera()
+        
+        if data[0] == "C":
+            if (len(data) % 4) - 1 == 0:
+                if len(data) > 1:
+                    for i in range((len(data) - 1) / 4):
+                        color = int(data[i * 4 + 1])
+                        self.color_pixels[color] = int(data[i * 4 + 2])
+                        self.color_cx[color] = int(data[i * 4 + 3])
+                        self.color_cy[color] = int(data[i * 4 + 4])
     
-    return corrected_x, corrected_y
+    def read_tags(self, mode):
+        self.tag_detected = [0] * 10
+        self.tag_cx = [0] * 10
+        self.tag_cy = [0] * 10
+        self.tag_distance = [0] * 10
+        self.tag_roll = [0] * 10
+        self.tag_pitch = [0] * 10
+        
+        self.uart.write(f"T{mode}\n")
+        data = self.read_camera()
+
+        if data[0] == "T":
+            if len(data) > 1:
+                if (len(data) - 1) % 6 == 0:
+                    for i in range((len(data) - 1) / 6):
+                        tag_id = int(data[i * 6 + 1])
+                        self.tag_detected[tag_id] = 1
+                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
+                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
+
+
 
 def forward_to_Apriltag_mm(m):
     
@@ -424,14 +518,20 @@ def forward_to_Apriltag_mm(m):
 
 
         utime.sleep(0.1)  # 100ms待機
-   
+
+
+
 motor = Motor()
-motor.enable_irq()
-print("e")
+motor.enable_irq() 
+
 m=160#ここでapriltagの何ｍｍ前に来るかを決める
 
-#if __name__ == '__main__':
-try:
+
+if __name__ == "__main__":
+    camera = CameraReceiver(UART1)
+    time.sleep(3)
+    
+    
     tag_id = 0    # ID
     cx = 0      # X座標
     cy = 0      # Y座標
@@ -442,98 +542,69 @@ try:
        
     motor.enable_irq()
     motor.update_rpm(30, 30)
-    print("e")
+    
+    
+    
+    print("go")
+    
+try:
+    motor = Motor()
+    motor.enable_irq()    
+    cam = CameraReceiver(UART1)
+    
     while True:
-        print("e")
-        if uart.any():  # 受信バッファにデータがあるか確認
-            break
-        utime.sleep(0.1)  # 100ms待機
-    try:
-        print("go")
-        # 1行のデータを受信
-        line = uart.readline()
-        if line:
-            try:
-                line = line.decode('utf-8').strip()
-            except UnicodeDecodeError:
-                print("UART decoding error")
-                #continue
-        #else:
-            #continue
-        data = line.split(',')
-
-        #AprilTag認識
-        if len(data) == 4 and data[0] != "Color":
-            tag_id = int(data[0])
-            cx, cy = float(data[1]), float(data[2])
-            distance = float(data[3]) 
-            
-            corrected_cx, corrected_cy = undistort_point(cx, cy)
-            corrected_distance = distance
-            
-            pitch_rad = math.atan2((corrected_cy - CENTER_Y) / FOCAL_LENGTH_Y, 1)
-            pitch = math.degrees(pitch_rad)
-            yaw_rad = math.atan2((corrected_cx - CENTER_X) / FOCAL_LENGTH_X, 1)
-            yaw = math.degrees(yaw_rad)
+        cam.read_tags(0)
+        print(cam.tag_detected[6])
+        time.sleep(0.1)
         
-            print(f"AprilTag ID: {tag_id}, Corrected X: {corrected_cx:.2f}, Corrected Y: {corrected_cy:.2f}, Distance: {corrected_distance:.2f}, Pitch: {pitch:.2f}, Yaw: {yaw:.2f}")
-
-        #色認識
-        elif len(data) == 4 and data[0] == "Color":
-            color_name = data[1]
-            cx, cy = float(data[2]), float(data[3])
-            corrected_cx, corrected_cy = undistort_point(cx, cy)
+        
+        
+        
+        if cam.tag_detected[0]:
+            print("0")
+            roll, pitch, yaw = euler()
+            init_yaw = yaw
+            #forward_to_Apriltag_mm(m)
+            print(f"complete")
+           
+        elif cam.tag_detected[1]:
+            print(f"1")
+            roll, pitch, yaw = euler()
+            init_yaw = yaw
+            soutai_turn_right_90()
+            straight_forward_t(2)
+            soutai_turn_left_from358to2()
+            straight_forward_t(2)
+            soutai_turn_left_90()
+            print("ji")
+            print(f"complete")
+             
+        elif cam.tag_detected[2]:#ここで特異点を超えてしまうやつが発生する危険性あり
+            print(f"2")
+            roll, pitch, yaw = euler()
+            init_yaw = yaw
+            soutai_turn_right_90()
+            straight_forward_t(2)
+            soutai_turn_left_from358to2()
+            straight_forward_t(4)
+            soutai_turn_left_90()
+            straight_forward_t(2)
+            soutai_turn_left_180()
+            print(f"complete")
             
-            print(f"Detected Color: {color_name}, Corrected X: {corrected_cx:.2f}, Corrected Y: {corrected_cy:.2f}")
-
-    except Exception as e:
-        print(f"Error: {e}")
-
-
-    if tag_id == 0:
-        print(0)
-        roll, pitch, yaw = euler()
-        init_yaw = yaw
-        forward_to_Apriltag_mm(m)
-        print(f"complete")
-       
-    elif tag_id == 1:
-        print(f"1")
-        roll, pitch, yaw = euler()
-        init_yaw = yaw
-        soutai_turn_right_90()
-        straight_forward_t(2)
-        soutai_turn_left_from358to2()
-        straight_forward_t(2)
-        soutai_turn_left_90()
-        print("ji")
-        print(f"complete")
+        elif cam.tag_detected[3]:
+            print(f"3")
+            roll, pitch, yaw = euler()
+            init_yaw = yaw;
+            soutai_turn_left_90()
+            straight_forward_t(2)
+            soutai_turn_right_from358to2()
+            straight_forward_t(2)
+            soutai_turn_right_90()
+            print(f"complete")
+           
         
-    elif tag_id == 2:#ここで特異点を超えてしまうやつが発生する危険性あり
-        print(f"2")
-        roll, pitch, yaw = euler()
-        init_yaw = yaw
-        soutai_turn_right_90()
-        straight_forward_t(2)
-        soutai_turn_left_from358to2()
-        straight_forward_t(4)
-        soutai_turn_left_90()
-        straight_forward_t(2)
-        soutai_turn_left_180()
-        print(f"complete")
-        
-    elif tag_id == 3:
-        print(f"3")
-        roll, pitch, yaw = euler()
-        init_yaw = yaw;
-        soutai_turn_left_90()
-        straight_forward_t(2)
-        soutai_turn_right_from358to2()
-        straight_forward_t(2)
-        soutai_turn_right_90()
-        print(f"complete")
-       
-except KeyboardInterrupt:#stopを押したときにモーターを止めるための
-                motor.stop()
-                motor.disable_irq()
-                print("stopped!")
+finally:
+        motor.stop()
+        motor.disable_irq()
+        print("stopped!")
