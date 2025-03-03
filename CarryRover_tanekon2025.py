@@ -57,8 +57,10 @@ BACKWARD   = 4
 
 EARTH_RADIUS = 6378137  # 地球の半径(m)
 PDOP = 5                # PDOPの閾値
-STATION0_LAT, STATION0_LON = 35.9180565, 139.9086761  # 地上局0の経度緯度
-STATION1_LAT, STATION0_LON = 35.9180565, 139.9086761  # 地上局１の経度緯度
+STATION = [
+    (35.9180565, 139.9086761),  # 地上局0の経度緯度
+    (35.9180565, 139.9086761)  # 地上局１の経度緯度
+]
 
 DEVICE_NAME = "RPpicoW"   # Bluetoorhのデバイス名
 FILE_NAME = "CarryRover"  # ログを保存するファイル名
@@ -216,8 +218,13 @@ class Motor:
         self.direction_b = 0
         self.start_time = time.ticks_ms()
         self.state = 0
-
+        PPR         = 3         # パルス数 (PPR = CPR / 4)
+        GEAR_RATIO  = 297.92    # ギア比
+        FREQ        = 20        # タイマー割り込みの周波数 [Hz]
+        KP_RPM      = 0.2       # RPM制御の比例ゲイン
+        
         self.timer = Timer()  # タイマーオブジェクトを生成
+        
 
     def pulse_counter_a(self, pin):
         if self.OUTA_A.value() == self.OUTB_A.value():
@@ -342,7 +349,7 @@ class GPS:
         log.ble_print("GPS signal received!")
 
     def read_nmea(self):
-        if self.uart.any() > 0:
+        while self.uart.any() > 0:
             sentence = self.uart.read()
             if sentence is None:
                 return
@@ -397,53 +404,112 @@ class GPS:
 class CameraReceiver:
     def __init__(self, uart):
         self.uart = uart
+        
+        time.sleep(2)
+        
+
+        # UnitVとの接続確認
+        while True:
+            self.uart.write("1\n")
+            
+            while not self.uart.any():
+                print("Waiting for Unitv signal...")
+                time.sleep(0.5)
+                
+            message = self.uart.readline().decode('utf-8').strip()
+            
+            if message == "1":
+                print("Unitv connected")
+                break
+            
+            time.sleep(0.1)
+
 
     def read_camera(self):
         message = ""
-        while not self.uart.any():
-            time.sleep(0.01)
-                
-        while self.uart.any() > 0: 
-            message += self.uart.read().decode('utf-8').strip()
-            
-        data = message.split(',')
         
-        return data
+        while True:
+            if self.uart.any():
+                char = self.uart.read(1).decode('utf-8')
+                if char == "\n":
+                    break
+                message += char
+                
+                time.sleep(0.01)
+            
+        return message.split(',')
 
     def read_color(self):
-        self.uart.write("c\n")
+        # 0: Red, 1: Blue, 2: Purple
+        self.color_pixels = [0] * 3
+        self.color_cx = [0] * 3
+        self.color_cy = [0] * 3
+        
+        self.uart.write("C\n")
         data = self.read_camera()
         
-        if data[0] == "c":
-            self.color_pixels = []
-            self.color_cx = []
-            self.color_cy = []
-            
-            for color in range(3):
-                self.color_pixels.append(float(data[color*3 + 1]))
-                self.color_cx.append(float(data[color*3 + 2]))
-                self.color_cy.append(float(data[color*3 + 3]))
+        if data[0] == "C":
+            if (len(data) % 4) - 1 == 0:
+                if len(data) > 1:
+                    for i in range((len(data) - 1) / 4):
+                        color = int(data[i * 4 + 1])
+                        self.color_pixels[color] = int(data[i * 4 + 2])
+                        self.color_cx[color] = int(data[i * 4 + 3])
+                        self.color_cy[color] = int(data[i * 4 + 4])
+    
+    def read_tags(self, mode):
+        self.tag_detected = [0] * 10
+        self.tag_cx = [0] * 10
+        self.tag_cy = [0] * 10
+        self.tag_distance = [0] * 10
+        self.tag_roll = [0] * 10
+        self.tag_pitch = [0] * 10
+        
+        self.uart.write(f"T{mode}\n")
+        data = self.read_camera()
 
-    def read_tag(self):
-        self.uart.write("t\n")    
-        data = self.read_camera()
-        
-        if data[0] == "t":
-            self.tag_detected = []
-            self.tag_cx = []
-            self.tag_cy = []
-            self.tag_distance = []
-            self.tag_pitch = []
-            
-            for tag_id in range(10):
-                self.tag_detected.append(int(data[tag_id*5 + 1]))
-                self.tag_cx.append(float(data[tag_id*5 + 2]))
-                self.tag_cy.append(float(data[tag_id*5 + 3]))
-                self.tag_distance.append(float(data[tag_id*5 + 4]))
-                self.tag_pitch.append(float(data[tag_id*5 + 5]))
+        if data[0] == "T":
+            if len(data) > 1:
+                if (len(data) - 1) % 6 == 0:
+                    for i in range((len(data) - 1) / 6):
+                        tag_id = int(data[i * 6 + 1])
+                        self.tag_detected[tag_id] = 1
+                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
+                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
+
 
 class ArmController:
-    """アーム制御のクラスを作る"""
+    def __init__(self, i2c):
+        self.servos = Servos(i2c)
+        self.servos.pca9685.freq(50)
+        
+        # アームの初期位置
+        self.init_angles = [110, 170, 0, 10, 0]
+        self.current_angles = self.init_angles[:]
+        
+        for i in range(5):
+            self.servos.position(i, self.init_angles[i])
+            
+    def move_smoothly(self, index, target_angle):
+        current_angle = self.current_angles[index]
+        
+        while current_angle != target_angle:
+            if current_angle < target_angle:
+                current_angle += 1
+            elif current_angle > target_angle:
+                current_angle -= 1
+                
+            self.servos.position(index, current_angle)
+            time.sleep(0.02)
+            
+            self.current_angles[index] = current_angle
+    
+    def move_servo(self, index, target_angle):
+        arm.servos.position(index, target_angle)
+        arm.current_angles[index] = target_angle
     
     
 def start():
@@ -519,9 +585,34 @@ def fusing():
     log.sd_write("Fusing completed")
 
 def avoid_para():
-    """パラ回避の関数を作る"""
+    while True:
+        camera_data = read_camera()
+        if camera_data is None:
+            pixels, cx, cy = 0, 0, 0  # デフォルト値
+        else:
+            pixels, cx, cy = camera_data
 
-def gps_guidance(goal_lat, goal_lon):
+        print(f"ピクセル数: {pixels}, 中心座標: ({cx}, {cy})")
+        time.sleep(0.1)
+
+        if 0 < pixels <= 10000:
+            if 0 <= cx <= 120:
+                motor.update_rpm(30,30)
+                motor.run(TURN_RIGHT)
+            elif 120 < cx <= 240:
+                motor.update_rpm(30,30)
+                motor.run(TURN_LEFT)
+            
+        elif 10000 < pixels:#パラシュートが近いとき
+            motor.stop()
+            time.sleep(5)
+            
+        else: 
+            motor.update_rpm(30,30)
+            motor.run(FORWARD)
+
+def gps_guidance(index):
+    goal_lat, goal_lon = STATION[index]
     motor.enable_irq()
     
     while not gps.update_data(goal_lat, goal_lon):
@@ -537,8 +628,9 @@ def gps_guidance(goal_lat, goal_lon):
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
         log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
         
-        if gps.distance <= 5:
-            log.sd_write("GPS_guidance completed")
+        cam.read_color()
+        if gps.distance < 10 and cam.color_pixels[index] > 300:
+            log.sd_write("GPS guidance completed")
             motor.stop()
             break
         
@@ -553,12 +645,42 @@ def gps_guidance(goal_lat, goal_lon):
         else:
             motor.update_rpm(30, 30)
             motor.run(FORWARD)
-    
+        
         time.sleep(0.1)
 
-def image_guidance():
-    """画像誘導の関数を作る"""
+def constrain(value, min_val, max_val):
+        return max(min_val, min(value, max_val))
+    
+def color_guidance(index):
+    Kp_camera = 0.5
+    pix = 120
+        
+    while True:
+        camera.read_color()
+        log.sd_write(f"Red pixels: {camera.color_pixels[0]}")
+        
+        if camera.color_pixels[index] == 0:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)#旋回 
+        else:
+            cx = camera.color_cx[index]
+            p_pwma = constrain(-Kp_camera * (cx - pix) + 30 , 0, 30)
+            p_pwmb = constrain(Kp_camera * (cx - pix) + 30 , 0, 30)
+            motor.update_rpm(p_pwma, p_pwmb)
+            motor.run(FORWARD)
+                       
+        if camera.color_pixels[index] > 4000:
+            motor.update_rpm(30,30)
+            motor.run(FORWARD)
+            time.sleep(0.5)
+            motor.stop()
+            motor.disable_irq()
+            log.sd_write(f"Color guidance completed")
+            break
 
+def apriltag_guidance(index):
+    """エイプリルタグでの誘導"""
+    
 def collect_material():
     """物資回収の関数を書く"""
 
@@ -568,11 +690,12 @@ def place_material():
 
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
-    bno = BNO055Handler(i2c=I2C0)
-    bme = BME280(i2c=I2C0)
+    bno = BNO055Handler(I2C0)
+    bme = BME280(I2C0)
     motor = Motor()
     gps = GPS(UART0)
-    camera = CameraReceiver(UART1)
+    cam = CameraReceiver(UART1)
+    arm = ArmController(I2C1)
     
     log.sd_write("Setup completed")
     
@@ -582,20 +705,24 @@ if __name__ == "__main__":
         landing()
         fusing()
         avoid_para()
-        gps_guidance(STATION0_LAT, STATION0_LON)
-        # 画像誘導(地上局0)
+        gps_guidance(0)
+        color_guidance(0)
+        apriltag_guidance(0)
         # アームによる物資回収
-        gps_guidance(STATION1_LAT, STATION1_LON)
-        # 画像誘導(地上局１)
+        gps_guidance(1)
+        color_guidance(1)
+        apriltag_guidance(1)
         # アームによる物資設置
         # アームによる物資回収
-        gps_guidance(STATION0_LAT, STATION0_LON)
-        # 画像誘導(地上局0)
+        gps_guidance(0)
+        color_guidance(0)
+        apriltag_guidance(0)
         # アームによる物資設置
         
     finally:
         motor.stop()
         motor.disable_irq()
         time.sleep(1)
+
 
 
