@@ -1,86 +1,809 @@
-def apriltag_guidance(index):
-     """エイプリルタグでの誘導"""
-    #ここから90度回転して正面に来るプログラム
-    KP_YAW=0.3#ここで比例定数を決める
-    #motor = Motor()
-    Motor.enable_irq() 
+"""
+・機体が反転した時のプログラム
+・GPS誘導中に目的地の地上局を発見したときに画像誘導に移行する
+・GPS誘導中に目的地とは別の地上局を発見したときに避ける
+・GPS誘導中に物資の保持を検知する
+"""
+from machine import Pin, PWM, I2C, SPI, UART, Timer
+from bno055 import *
+from bme280 import BME280
+from micropyGPS import MicropyGPS
+from servo import Servos
+from ble_simple_peripheral import BLESimplePeripheral
+import os
+import time
+import math
+import bluetooth
+import sdcard
+i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))
+time.sleep(2)
 
-    m=160#ここでapriltagの何ｍｍ前に来るかを決める
+bno = BNO055(i2c)#bno,eulerの準備
 
+# シリアル通信のピン設8定
+I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
+I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
+SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
+SPI1_CS = Pin(13, Pin.OUT)
+UART0 = UART(0, baudrate=9600, tx=Pin(0), rx=Pin(1))
+UART1 = UART(1, baudrate=115200, tx=Pin(4), rx=Pin(5))
 
-    if __name__ == "__main__":
-        #camera = CameraReceiver(UART1)
-        time.sleep(3)
+FUSING_GPIO = Pin(8, Pin.OUT, value = 0) # 溶断回路のピン設定
+
+# モータードライバピン設定
+AIN1 = Pin(18, Pin.OUT)
+AIN2 = Pin(17, Pin.OUT)
+PWMA = PWM(Pin(16))
+PWMA.freq(1000)
+BIN1 = Pin(19, Pin.OUT)
+BIN2 = Pin(22, Pin.OUT)
+PWMB = PWM(Pin(28))
+PWMB.freq(1000)
+STBY = Pin(9, Pin.OUT, value=1)
+
+# エンコーダピン設定
+OUTA_A = Pin(3, Pin.IN)
+OUTB_A = Pin(2, Pin.IN)
+OUTA_B = Pin(7, Pin.IN)
+OUTB_B = Pin(6, Pin.IN)
+
+PPR         = 3         # パルス数 (PPR = CPR / 4)
+GEAR_RATIO  = 297.92    # ギア比
+FREQ        = 20        # タイマー割り込みの周波数 [Hz]
+KP_RPM      = 0.2       # RPM制御の比例ゲイン
+KP_YAW		= 0.3		#ここで比例定数を決める
+
+# モーター状態
+STOP       = 0 
+FORWARD    = 1
+TURN_R     = 2
+TURN_L     = 3
+BACKWARD   = 4
+
+EARTH_RADIUS = 6378137  # 地球の半径(m)
+PDOP = 5                # PDOPの閾値
+STATION = [
+    (35.9180565, 139.9086761),  # 地上局0の経度緯度
+    (35.9180565, 139.9086761)  # 地上局１の経度緯度
+]
+
+DEVICE_NAME = "RPpicoW"   # Bluetoorhのデバイス名
+FILE_NAME = "CarryRover"  # ログを保存するファイル名
+
+class Motor:
+    def __init__(self):
+        self.AIN1 = AIN1
+        self.AIN2 = AIN2
+        self.PWMA = PWMA
+        self.BIN1 = BIN1
+        self.BIN2 = BIN2
+        self.PWMB = PWMB
+        self.STBY = STBY
+        self.OUTA_A = OUTA_A
+        self.OUTB_A = OUTB_A
+        self.OUTA_B = OUTA_B
+        self.OUTB_B = OUTB_B
+
+        # 制御用変数
+        self.rate_a = 0
+        self.rate_b = 0
+        self.target_rpm_a = 0
+        self.target_rpm_b = 0
+        self.pulse_count_a = 0
+        self.pulse_count_b = 0
+        self.direction_a = 0
+        self.direction_b = 0
+        self.start_time = time.ticks_ms()
+        self.state = 0
+        self.timer = Timer()  # タイマーオブジェクトを生成
         
+
+    def pulse_counter_a(self, pin):
+        if self.OUTA_A.value() == self.OUTB_A.value():
+            self.direction_a = 1
+        else:
+            self.direction_a = -1
+        self.pulse_count_a += self.direction_a
+
+    def pulse_counter_b(self, pin):
+        if self.OUTA_B.value() == self.OUTB_B.value():
+            self.direction_b = 1
+        else:
+            self.direction_b = -1
+        self.pulse_count_b += self.direction_b
+
+    def run(self, state):
+        if self.state != state:
+            self.stop()
+            self.state = state
+
+        if self.state == FORWARD:
+            self.AIN1.off()
+            self.AIN2.on()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.on()
+            self.BIN2.off()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+
+        elif self.state == TURN_R:
+            self.AIN1.on()
+            self.AIN2.off()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.on()
+            self.BIN2.off()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+
+        elif self.state == TURN_L:
+            self.AIN1.off()
+            self.AIN2.on()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.off()
+            self.BIN2.on()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+
+        elif self.state == BACKWARD:
+            self.AIN1.on()
+            self.AIN2.off()
+            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
+            self.BIN1.off()
+            self.BIN2.on()
+            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+
+    def stop(self):
+        self.AIN1.off()
+        self.AIN2.off()
+        self.BIN1.off()
+        self.BIN2.off()
+        self.rate_a = 20
+        self.rate_b = 20
+        self.state = 0
+
+    def compute_rpm(self, pulse_count, interval):
+        if interval <= 0:
+            return 0
+        rpm = abs((pulse_count * 60) / (PPR * GEAR_RATIO * interval))
+        return rpm
+
+    def update_speed(self, timer):
+        if self.state == 0:
+            self.start_time = time.ticks_ms()
+            self.pulse_count_a = 0
+            self.pulse_count_b = 0
+        else:
+            now = time.ticks_ms()
+            interval = time.ticks_diff(now, self.start_time) / 1000
+            rpm_a = self.compute_rpm(self.pulse_count_a, interval)
+            rpm_b = self.compute_rpm(self.pulse_count_b, interval)
+            self.rate_a += KP_RPM * (self.target_rpm_a - rpm_a)
+            self.rate_b += KP_RPM * (self.target_rpm_b - rpm_b)
+            self.rate_a = min(max(self.rate_a, 0), 100)
+            self.rate_b = min(max(self.rate_b, 0), 100)
+
+            self.run(self.state)
+
+            self.start_time = now
+            self.pulse_count_a = 0
+            self.pulse_count_b = 0
+
+    def update_rpm(self, target_rpm_a, target_rpm_b):
+        self.target_rpm_a = target_rpm_a
+        self.target_rpm_b = target_rpm_b
+
+    def adjust_start_time(self, dt):
+        self.start_time = time.ticks_add(self.start_time, dt)
+
+    def enable_irq(self):
+        self.OUTA_A.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_a)
+        self.OUTA_B.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_b)
+        self.timer.init(mode=Timer.PERIODIC, freq=FREQ, callback=self.update_speed)
+        self.start_time = time.ticks_ms()
+
+    def disable_irq(self):
+        self.OUTA_A.irq(handler=None)
+        self.OUTA_B.irq(handler=None)
+        self.timer.deinit()
+
+
+class GPS:
+    def __init__(self, uart):
+        self.uart = uart
+        self.micropygps = MicropyGPS(9, 'dd')
+        self.updated_formats = set()
+        self.lat = 0
+        self.lon = 0
+        self.distance = 0
+        self.azimuth = 0
         
-        tag_id = 0    # ID
-        cx = 0      # X座標
-        cy = 0      # Y座標
-        distance = 0  # 距離
-        pitch = 0     # ピッチ角
-        yaw = 0       # ヨー角
+        while not self.update_data(0, 0):
+            self.read_nmea()
+            log.ble_print("Waiting for GPS signal...")
+            time.sleep(1)
+            
+        log.ble_print("GPS signal received!")
+
+    def read_nmea(self):
+        while self.uart.any() > 0:
+            sentence = self.uart.read()
+            if sentence is None:
+                return
+            try:
+                for char in sentence.decode('utf-8'):
+                    gps_format = self.micropygps.update(char)
+                    if gps_format:
+                        self.updated_formats.add(gps_format)
+            except Exception as e:
+                log.ble_print(f"Error: {e}")
+
+    def compute_distance(self, goal_lat, goal_lon):
+        lat0, lon0, lat1, lon1 = map(math.radians, [self.lat, self.lon, goal_lat, goal_lon])
+        dlat = lat1 - lat0
+        dlon = lon1 - lon0
+        a = math.sin(dlat / 2)**2 + math.cos(lat0) * math.cos(lat1) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        self.distance = EARTH_RADIUS * c
+
+    def compute_azimuth(self, goal_lat, goal_lon):
+        lat0, lon0, lat1, lon1 = map(math.radians, [self.lat, self.lon, goal_lat, goal_lon])
+        dlon = lon1 - lon0
+        x = math.sin(dlon) * math.cos(lat1)
+        y = math.cos(lat0) * math.sin(lat1) - math.sin(lat0) * math.cos(lat1) * math.cos(dlon)
+        azimuth_rad = math.atan2(x, y)
+        self.azimuth = (math.degrees(azimuth_rad) + 360) % 360
+
+    def update_data(self, goal_lat, goal_lon):
+        if {'GNGGA', 'GNGSA'} <= self.updated_formats:
+            self.updated_formats.clear()
+            if self.micropygps.pdop < PDOP and self.micropygps.satellites_in_use > 3:
+                try:
+                    lat = self.micropygps.latitude[0]
+                    lon = self.micropygps.longitude[0]
+                    if lat is not None and lon is not None:
+                        if self.lat != lat or self.lon != lon:
+                            self.lat = lat
+                            self.lon = lon
+                            self.compute_distance(goal_lat, goal_lon)
+                            self.compute_azimuth(goal_lat, goal_lon)
+                            return True
+                except IndexError as e:
+                    log.ble_print(f"Error: {e}")
+            
+            else:
+                log.ble_print("GPS low accuracy")
+                log.ble_print(f"PDOP: {self.micropygps.pdop}, Satellites: {self.micropygps.satellites_in_use}")
+                
+        return False
     
-           
-        Motor.enable_irq()
-        Motor.update_rpm(30, 30)
+
+class CameraReceiver:
+    def __init__(self, uart):
+        self.uart = uart
         
+        time.sleep(2)
         
-        
-        print("go")
-        
-    try:
-        #motor = Motor()
-        motor.enable_irq()    
-        #cam = CameraReceiver(UART1)
+
+        # UnitVとの接続確認
+        while True:
+            self.uart.write("1\n")
+            
+            while not self.uart.any():
+                print("Waiting for Unitv signal...")
+                time.sleep(0.5)
+                
+            message = self.uart.readline().decode('utf-8').strip()
+            
+            if message == "1":
+                print("Unitv connected")
+                break
+            
+            time.sleep(0.1)
+
+    def read_camera(self):
+        message = ""
         
         while True:
-            CameraReceiver(UART1).read_tags(0)
-            print(cam.tag_detected[6])
-            time.sleep(0.1)
-            
-            
-            
-            
-            if cam.tag_detected[0]:
-                print("0")
-                roll, pitch, yaw = compute_euler()
-                init_yaw = yaw
-                #forward_to_Apriltag_mm(m)
-                print(f"complete")
-               
-            elif cam.tag_detected[1]:
-                print(f"1")
-                roll, pitch, yaw = compute_euler()
-                init_yaw = yaw
-                soutai_turn_right_90()
-                straight_forward_t(2)
-                soutai_turn_left_from358to2()
-                straight_forward_t(2)
-                soutai_turn_left_90()
-                print("ji")
-                print(f"complete")
-                 
-            elif cam.tag_detected[2]:#ここで特異点を超えてしまうやつが発生する危険性あり
-                print(f"2")
-                roll, pitch, yaw = compute_euler()
-                init_yaw = yaw
-                soutai_turn_right_90()
-                straight_forward_t(2)
-                soutai_turn_left_from358to2()
-                straight_forward_t(4)
-                soutai_turn_left_90()
-                straight_forward_t(2)
-                soutai_turn_left_180()
-                print(f"complete")
+            if self.uart.any():
+                char = self.uart.read(1).decode('utf-8')
+                if char == "\n":
+                    break
+                message += char
                 
-            elif cam.tag_detected[3]:
-                print(f"3")
-                roll, pitch, yaw = compute_euler()
-                init_yaw = yaw;
-                soutai_turn_left_90()
-                straight_forward_t(2)
-                soutai_turn_right_from358to2()
-                straight_forward_t(2)
-                soutai_turn_right_90()
-                print(f"complete")
-        #ここまで90度回転して正面に来るプログラム
+                time.sleep(0.01)
+            
+        return message.split(',')
+
+    def read_color(self):
+        # 0: Red, 1: Blue, 2: Purple
+        self.color_pixels = [0] * 3
+        self.color_cx = [0] * 3
+        self.color_cy = [0] * 3
+        
+        self.uart.write("C\n")
+        data = self.read_camera()
+        
+        if data[0] == "C":
+            if (len(data) % 4) - 1 == 0:
+                if len(data) > 1:
+                    for i in range((len(data) - 1) / 4):
+                        color = int(data[i * 4 + 1])
+                        self.color_pixels[color] = int(data[i * 4 + 2])
+                        self.color_cx[color] = int(data[i * 4 + 3])
+                        self.color_cy[color] = int(data[i * 4 + 4])
+    
+    def read_tags(self, mode):
+        self.tag_detected = [0] * 10
+        self.tag_cx = [0] * 10
+        self.tag_cy = [0] * 10
+        self.tag_distance = [0] * 10
+        self.tag_roll = [0] * 10
+        self.tag_pitch = [0] * 10
+        
+        self.uart.write(f"T{mode}\n")
+        data = self.read_camera()
+
+        if data[0] == "T":
+            if len(data) > 1:
+                if (len(data) - 1) % 6 == 0:
+                    for i in range((len(data) - 1) / 6):
+                        tag_id = int(data[i * 6 + 1])
+                        self.tag_detected[tag_id] = 1
+                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
+                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
+                        
+def euler():
+    bno.iget(QUAT_DATA)
+   
+    w = (bno.w / 16384)
+    x = (bno.x / 16384)
+    y = (bno.y / 16384)
+    z = (bno.z / 16384)
+
+    ysqr = y * y
+
+    # roll (x-axis rotation)
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + ysqr)
+    roll = math.atan2(t0, t1);
+
+    # pitch (y-axis rotation)
+    t2 = +2.0 * (w * y - z * x)
+    if t2 > 1.0:
+        t2 = 1.0
+   
+    elif t2 < -1.0:
+        t2 = -1.0
+    pitch = math.asin(t2)
+
+    # yaw (z-axis rotation)
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (ysqr + z * z)
+    yaw = math.atan2(t3, t4)
+
+    roll *= 180/math.pi
+    pitch *= 180/math.pi
+    yaw *= 180/math.pi
+    return roll, pitch, yaw
+
+def soutai_turn_right_90():
+        while True:
+            motor.update_rpm(10,10)
+            motor.run(TURN_R)
+            roll, pitch, yaw = euler()
+            current_yaw = yaw
+            diff=-(current_yaw-init_yaw)
+            if diff < 0:
+                diff = diff + 360
+            print(diff)
+            if diff >= 89 or diff <= 91:#358to2とかで359とかでとまったときにdiff >= 90認定されないように
+                motor.stop()
+                print("stop")
+                break
+            time.sleep(0.01)
+
+def soutai_turn_right_from358to2():
+        while True:
+            motor.update_rpm(10,10)
+            motor.run(TURN_R)
+            roll, pitch, yaw = euler()
+            current_yaw = yaw
+            diff=-(current_yaw-init_yaw)
+            if diff < 0:
+                diff = diff + 360
+            print(diff)
+            if 359 <= diff or diff <= 1:#もし358 <= diff or diffにおさまらなかったときようのを書いておくべき？
+                motor.stop()
+                print("stop")
+                break
+            time.sleep(0.01)
+
+
+def soutai_turn_left_90():
+        while True:
+            motor.update_rpm(10,10)
+            motor.run(TURN_L)
+            roll, pitch, yaw = euler()
+            current_yaw = yaw
+            diff=(current_yaw-init_yaw)
+            if diff < 0:
+                diff = diff + 360
+            print(diff)
+            if diff >= 89 or diff <= 91:#358to2とかで359とかでとまったときにdiff >= 90認定されないように#
+                motor.stop()
+                print("stop")
+                break
+            time.sleep(0.01)
+            
+def soutai_turn_left_from358to2():
+        while True:
+            motor.update_rpm(10,10)
+            motor.run(TURN_L)
+            roll, pitch, yaw = euler()
+            current_yaw = yaw
+            diff=(current_yaw-init_yaw)
+            if diff < 0:
+                diff = diff + 360
+            print(diff)
+            if 359 <= diff or diff <= 1:
+                motor.stop()
+                print("stop")
+                break
+            time.sleep(0.01)
+            
+def soutai_turn_left_180():
+        while True:
+            motor.update_rpm(10,10)
+            motor.run(TURN_L)
+            roll, pitch, yaw = euler()
+            current_yaw = yaw
+            diff=(current_yaw-init_yaw)
+            if diff < 0:
+                diff = diff + 360
+            print(diff)
+            if diff >= 179 or diff <= 181:#358to2とかで359とかでとまったときにdiff >= 180認定されないように
+                motor.stop()
+                print("stop")
+                break
+            time.sleep(0.01)
+
+
+def straight_forward_t(t):
+    start=time.time()
+    roll, pitch, yaw = euler()
+    init_yaw_s = yaw#init_yawは最初にとったののみにしたいので、変える
+    while True:
+        print(f"RESET")
+        motor.update_rpm(30,30)
+        motor.run(FORWARD)
+        roll, pitch, yaw = euler()
+        current_yaw = yaw
+        diff=(current_yaw-init_yaw_s)
+        print(diff)
+        
+        if abs(diff) >= 5:#それている#左が正
+            print(f"soreteru")
+            while True:
+                roll, pitch, yaw = euler()
+                current_yaw = yaw
+                diff=(current_yaw-init_yaw_s)
+                rate_a=-KP_YAW*diff+30
+                rate_b=KP_YAW*diff+30
+                motor.update_rpm(rate_a, rate_b)
+                motor.run(FORWARD)
+                print(f"L{diff}")
+                time.sleep(0.01)
+                if abs(diff) <= 5:
+                    break
+        
+        elif time.time() - start >= t:
+            break
+                
+        time.sleep(0.01)
+        
+
+class ArmController:
+    def __init__(self, i2c):
+        self.servos = Servos(i2c)
+        self.servos.pca9685.freq(50)
+        
+        # アームの初期位置
+        self.init_angles = [110, 170, 0, 10, 0]
+        self.current_angles = self.init_angles[:]
+        
+        for i in range(5):
+            self.servos.position(i, self.init_angles[i])
+            
+    def move_smoothly(self, index, target_angle):
+        current_angle = self.current_angles[index]
+        
+        while current_angle != target_angle:
+            if current_angle < target_angle:
+                current_angle += 1
+            elif current_angle > target_angle:
+                current_angle -= 1
+                
+            self.servos.position(index, current_angle)
+            time.sleep(0.02)
+            
+            self.current_angles[index] = current_angle
+    
+    def move_servo(self, index, target_angle):
+        arm.servos.position(index, target_angle)
+        arm.current_angles[index] = target_angle
+    
+    
+def start():
+    init_pressure = bme.pressure()
+    
+    while True:
+        current_pressure = bme.pressure()
+        diff_pressure = current_pressure - init_pressure
+        bno.compute_euler()
+        
+        if abs(bno.roll) > 45 and abs(bno.roll) < 135 and diff_pressure < -1:
+            log.sd_write("Mission start!")
+            break
+        else:
+            log.sd_write(f"Roll angle: {bno.roll}, pressure change: {diff_pressure}")
+        
+        time.sleep(0.1)
+
+def released():
+    count = 0
+    
+    while True:
+        bno.compute_euler()
+        roll = bno.roll
+        
+        if abs(roll) < 45:
+          count += 1
+        else:
+          count = 0
+          
+        if count >= 5:
+            log.sd_write("Released")
+            break
+        
+        log.sd_write(f"Roll angle: {roll}")
+        time.sleep(0.1)
+
+def landing():
+    count = 0
+    bno.compute_euler()
+    init_roll = bno.roll
+    init_pressure = bme.pressure()
+    start_time = time.time()
+
+    while True:
+        bno.compute_euler()
+        current_roll = bno.roll
+        current_pressure = bme.pressure()
+        diff_roll = current_roll - init_roll
+        diff_pressure = current_pressure - init_pressure
+        init_roll = current_roll
+        init_pressure = current_pressure
+        
+        if abs(diff_roll) < 1 and abs(diff_pressure) < 0.1:
+          count += 1
+        else:
+          count = 0
+        
+        now = time.time()
+        elapsed_time = (now - start_time)
+        
+        if count == 5 or elapsed_time > 30:
+            log.sd_write("Landing")
+            break
+        
+        log.sd_write(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
+        time.sleep(0.5)
+
+def fusing():
+    FUSING_GPIO.on()
+    time.sleep(0.3)
+    FUSING_GPIO.off()
+    log.sd_write("Fusing completed")
+
+def avoid_para():
+    while True:
+        camera_data = read_camera()
+        if camera_data is None:
+            pixels, cx, cy = 0, 0, 0  # デフォルト値
+        else:
+            pixels, cx, cy = camera_data
+
+        print(f"ピクセル数: {pixels}, 中心座標: ({cx}, {cy})")
+        time.sleep(0.1)
+
+        if 0 < pixels <= 10000:
+            if 0 <= cx <= 120:
+                motor.update_rpm(30,30)
+                motor.run(TURN_RIGHT)
+            elif 120 < cx <= 240:
+                motor.update_rpm(30,30)
+                motor.run(TURN_LEFT)
+            
+        elif 10000 < pixels:#パラシュートが近いとき
+            motor.stop()
+            time.sleep(5)
+            
+        else: 
+            motor.update_rpm(30,30)
+            motor.run(FORWARD)
+
+def gps_guidance(index):
+    goal_lat, goal_lon = STATION[index]
+    motor.enable_irq()
+    
+    while not gps.update_data(goal_lat, goal_lon):
+        gps.read_nmea()
+        log.ble_print("Waiting for GPS signal...")
+        time.sleep(1)
+            
+    while True:
+        gps.read_nmea()
+        gps.update_data(goal_lat, goal_lon)
+        bno.compute_heading()
+        bno.compute_euler()
+        azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
+        log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
+        
+        cam.read_color()
+        if gps.distance < 10 and cam.color_pixels[index] > 300:
+            log.sd_write("GPS guidance completed")
+            motor.stop()
+            break
+        
+        if azimuth_error > 20:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)
+            
+        elif azimuth_error < -20:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_L)
+        
+        else:
+            motor.update_rpm(30, 30)
+            motor.run(FORWARD)
+        
+        time.sleep(0.1)
+
+def constrain(value, min_val, max_val):
+        return max(min_val, min(value, max_val))
+    
+def color_guidance(index):
+    Kp_camera = 0.5
+    pix = 120
+        
+    while True:
+        camera.read_color()
+        log.sd_write(f"Red pixels: {camera.color_pixels[0]}")
+        
+        if camera.color_pixels[index] == 0:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)#旋回 
+        else:
+            cx = camera.color_cx[index]
+            p_pwma = constrain(-Kp_camera * (cx - pix) + 30 , 0, 30)
+            p_pwmb = constrain(Kp_camera * (cx - pix) + 30 , 0, 30)
+            motor.update_rpm(p_pwma, p_pwmb)
+            motor.run(FORWARD)
+                       
+        if camera.color_pixels[index] > 4000:
+            motor.update_rpm(30,30)
+            motor.run(FORWARD)
+            time.sleep(0.5)
+            motor.stop()
+            motor.disable_irq()
+            log.sd_write(f"Color guidance completed")
+            break
+
+def apriltag_guidance(index):
+    motor = Motor()
+    Motor.enable_irq() 
+
+    m=160	#ここでapriltagの何ｍｍ前に来るかを決める
+    cam = CameraReceiver(UART1)
+    time.sleep(3)
+    Motor.update_rpm(30, 30)
+        
+        
+    tag_id = 0    # ID
+    cx = 0      # X座標
+    cy = 0      # Y座標
+    distance = 0  # 距離
+    pitch = 0     # ピッチ角
+    yaw = 0       # ヨー角
+        
+    while True:
+        CameraReceiver(UART1).read_tags(0)
+        print(cam.tag_detected[6])
+        time.sleep(0.1)
+            
+        if cam.tag_detected[0]:
+            print("0")
+            roll, pitch, yaw = compute_euler()
+            init_yaw = yaw
+            #forward_to_Apriltag_mm(m)
+            print(f"complete")
+               
+        elif cam.tag_detected[1]:
+            print(f"1")
+            roll, pitch, yaw = compute_euler()
+            init_yaw = yaw
+            soutai_turn_right_90()
+            straight_forward_t(2)
+            soutai_turn_left_from358to2()
+            straight_forward_t(2)
+            soutai_turn_left_90()
+            print("ji")
+            print(f"complete")
+                 
+        elif cam.tag_detected[2]:#ここで特異点を超えてしまうやつが発生する危険性あり
+            print(f"2")
+            roll, pitch, yaw = compute_euler()
+            init_yaw = yaw
+            soutai_turn_right_90()
+            straight_forward_t(2)
+            soutai_turn_left_from358to2()
+            straight_forward_t(4)
+            soutai_turn_left_90()
+            straight_forward_t(2)
+            soutai_turn_left_180()
+            print(f"complete")
+                
+        elif cam.tag_detected[3]:
+            print(f"3")
+            roll, pitch, yaw = compute_euler()
+            init_yaw = yaw;
+            soutai_turn_left_90()
+            straight_forward_t(2)
+            soutai_turn_right_from358to2()
+            straight_forward_t(2)
+            soutai_turn_right_90()
+            print(f"complete")
+        #ここまで90度回転して正面に来るプログラム   
+    
+def collect_material():
+    """物資回収の関数を書く"""
+
+def place_material():
+    """物資設置の関数を書く"""
+    
+
+if __name__ == "__main__":
+    log = Logger(SPI1, SPI1_CS)
+    bno = BNO055Handler(I2C0)
+    bme = BME280(I2C0)
+    motor = Motor()
+    gps = GPS(UART0)
+    cam = CameraReceiver(UART1)
+    arm = ArmController(I2C1)
+    
+    log.sd_write("Setup completed")
+    
+    try:
+        start()
+        relaesed()
+        landing()
+        fusing()
+        avoid_para()
+        gps_guidance(0)
+        color_guidance(0)
+        apriltag_guidance(0)
+        # アームによる物資回収
+        gps_guidance(1)
+        color_guidance(1)
+        apriltag_guidance(1)
+        # アームによる物資設置
+        # アームによる物資回収
+        gps_guidance(0)
+        color_guidance(0)
+        apriltag_guidance(0)
+        # アームによる物資設置
+        
+    finally:
+        motor.stop()
+        motor.disable_irq()
+        time.sleep(1)
