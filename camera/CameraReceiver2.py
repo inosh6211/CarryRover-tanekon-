@@ -31,13 +31,13 @@ class CameraReceiver:
         message = ""
         
         while True:
-            while not self.uart.any():
-                time.sleep(0.01)
+            if self.uart.any():
+                char = self.uart.read(1).decode('utf-8')
+                if char == "\n":
+                    break
+                message += char
                 
-            char = self.uart.read(1).decode('utf-8')
-            if char == "\n":
-                break
-            message += char
+                time.sleep(0.01)
             
         return message.split(',')
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     while True:
         cam.read_tags(0)
         print(cam.tag_detected[6])
-        time.sleep(0.05)
+        time.sleep(0.1)
     
     """
     while True:
