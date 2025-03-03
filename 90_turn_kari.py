@@ -785,7 +785,7 @@ if __name__ == "__main__":
     
     try:
         start()
-        relaesed()
+        released()
         landing()
         fusing()
         avoid_para()
