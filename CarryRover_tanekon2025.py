@@ -679,50 +679,133 @@ def color_guidance(index):
             break
 
 def apriltag_guidance(index):
-    """エイプリルタグでの誘導"""
-    
-def collect_material():
-    """物資回収の関数を書く"""
-
-def place_material():
-    """物資設置の関数を書く"""
-    
-
-if __name__ == "__main__":
-    log = Logger(SPI1, SPI1_CS)
-    bno = BNO055Handler(I2C0)
-    bme = BME280(I2C0)
+     """エイプリルタグでの誘導"""
     motor = Motor()
-    gps = GPS(UART0)
-    cam = CameraReceiver(UART1)
-    arm = ArmController(I2C1)
-    
-    log.sd_write("Setup completed")
-    
-    try:
-        start()
-        relaesed()
-        landing()
-        fusing()
-        avoid_para()
-        gps_guidance(0)
-        color_guidance(0)
-        apriltag_guidance(0)
-        # アームによる物資回収
-        gps_guidance(1)
-        color_guidance(1)
-        apriltag_guidance(1)
-        # アームによる物資設置
-        # アームによる物資回収
-        gps_guidance(0)
-        color_guidance(0)
-        apriltag_guidance(0)
-        # アームによる物資設置
+    motor.enable_irq() 
+
+    m=160#ここでapriltagの何ｍｍ前に来るかを決める
+
+
+    if __name__ == "__main__":
+        camera = CameraReceiver(UART1)
+        time.sleep(3)
         
-    finally:
-        motor.stop()
-        motor.disable_irq()
-        time.sleep(1)
+        
+        tag_id = 0    # ID
+        cx = 0      # X座標
+        cy = 0      # Y座標
+        distance = 0  # 距離
+        pitch = 0     # ピッチ角
+        yaw = 0       # ヨー角
+    
+           
+        motor.enable_irq()
+        motor.update_rpm(30, 30)
+        
+        
+        
+        print("go")
+        
+    try:
+        motor = Motor()
+        motor.enable_irq()    
+        cam = CameraReceiver(UART1)
+        
+        while True:
+            cam.read_tags(0)
+            print(cam.tag_detected[6])
+            time.sleep(0.1)
+            
+            
+            
+            
+            if cam.tag_detected[0]:
+                print("0")
+                roll, pitch, yaw = euler()
+                init_yaw = yaw
+                #forward_to_Apriltag_mm(m)
+                print(f"complete")
+               
+            elif cam.tag_detected[1]:
+                print(f"1")
+                roll, pitch, yaw = euler()
+                init_yaw = yaw
+                soutai_turn_right_90()
+                straight_forward_t(2)
+                soutai_turn_left_from358to2()
+                straight_forward_t(2)
+                soutai_turn_left_90()
+                print("ji")
+                print(f"complete")
+                 
+            elif cam.tag_detected[2]:#ここで特異点を超えてしまうやつが発生する危険性あり
+                print(f"2")
+                roll, pitch, yaw = euler()
+                init_yaw = yaw
+                soutai_turn_right_90()
+                straight_forward_t(2)
+                soutai_turn_left_from358to2()
+                straight_forward_t(4)
+                soutai_turn_left_90()
+                straight_forward_t(2)
+                soutai_turn_left_180()
+                print(f"complete")
+                
+            elif cam.tag_detected[3]:
+                print(f"3")
+                roll, pitch, yaw = euler()
+                init_yaw = yaw;
+                soutai_turn_left_90()
+                straight_forward_t(2)
+                soutai_turn_right_from358to2()
+                straight_forward_t(2)
+                soutai_turn_right_90()
+                print(f"complete")
+        """エイプリルタグでの誘導"""
+        
+        
+    def collect_material():
+        """物資回収の関数を書く"""
+    
+    def place_material():
+        """物資設置の関数を書く"""
+        
+    
+    if __name__ == "__main__":
+        log = Logger(SPI1, SPI1_CS)
+        bno = BNO055Handler(I2C0)
+        bme = BME280(I2C0)
+        motor = Motor()
+        gps = GPS(UART0)
+        cam = CameraReceiver(UART1)
+        arm = ArmController(I2C1)
+        
+        log.sd_write("Setup completed")
+        
+        try:
+            start()
+            relaesed()
+            landing()
+            fusing()
+            avoid_para()
+            gps_guidance(0)
+            color_guidance(0)
+            apriltag_guidance(0)
+            # アームによる物資回収
+            gps_guidance(1)
+            color_guidance(1)
+            apriltag_guidance(1)
+            # アームによる物資設置
+            # アームによる物資回収
+            gps_guidance(0)
+            color_guidance(0)
+            apriltag_guidance(0)
+            # アームによる物資設置
+            
+        finally:
+            motor.stop()
+            motor.disable_irq()
+            time.sleep(1)
 
 
 
