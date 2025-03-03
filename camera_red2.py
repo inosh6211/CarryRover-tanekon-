@@ -244,7 +244,7 @@ try:
         pix = 120
         
         if camera.color_pixels[0] == 0:
-            motor.update_rpm(30,30)
+            motor.update_rpm(10,10)
             motor.run(TURN_R)#旋回
             
         else:
