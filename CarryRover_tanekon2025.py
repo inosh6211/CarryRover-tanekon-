@@ -1,7 +1,4 @@
 """
-・機体が反転した時のプログラム
-・GPS誘導中に目的地の地上局を発見したときに画像誘導に移行する
-・GPS誘導中に目的地とは別の地上局を発見したときに避ける
 ・GPS誘導中に物資の保持を検知する
 """
 from machine import Pin, PWM, I2C, SPI, UART, Timer
@@ -288,44 +285,42 @@ class Motor:
         self.rate_b = 20
         self.state = 0
     
-    def forward_straight(seconds):
+    def run_straight(distance, rpm):  # 距離はm単位
         start = time.ticks_ms()
         bno.compute_euler()
-        init_yaw = bno.yaw
-        motor.update_rpm(30,30)
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.update_rpm(rpm, rpm)
         while True:
             motor.run(FORWARD)
             bno.compute_euler()
-            init_yaw = bno.yaw
-            diff = (current_yaw - init_yaw)
-            rpm_a = -KP_YAW * diff + 30
-            rpm_b = KP_YAW * diff + 30
+            current_yaw = (-bno.yaw + 360) % 360
+            diff = ((current_yaw - init_yaw + 180) % 360) - 180
+            rpm_a = -KP_YAW * diff + rpm
+            rpm_b = KP_YAW * diff + rpm
             motor.update_rpm(rpm_a, rpm_b)
             motor.run(FORWARD)
             now = time.ticks_ms()
-            if (now - start_time) / 1000 >= seconds:
+            if (now - start_time) / 1000 >= distance / (0.135 * math.pi() * rpm / 60) :
                 break
                     
             time.sleep(0.1)
     
     # 正：右回転、負：左回転
-    def turn_by_angle(angle):
+    def turn_by_angle(angle, rpm):
         bno.compute_euler()
-        init_yaw = bno.yaw
-        motor.update_rpm(20,20)
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.update_rpm(rpm, rpm)
         while True:
-            if angle > 0:
+            if angle > 0
                 motor.run(TURN_R)
-                bno.compute_euler()
-                current_yaw = bno.yaw
-                diff = (current_yaw - init_yaw)
             else:
                 motor.run(TURN_L)
-                bno.compute_euler()
-                current_yaw = bno.yaw
-                diff = (current_yaw - init_yaw)
                 
-            if diff >= angle:
+            bno.compute_euler()
+            current_yaw = (-bno.yaw + 360) % 360
+            diff = ((current_yaw - init_yaw + 180) % 360) - 180
+                
+            if (angle > 0 and diff >= angle) or (angle < 0 and diff <= angle):
                 motor.stop()
                 break
             
@@ -781,40 +776,20 @@ def collect_material():
 
 def place_material():
     """物資設置の関数を書く"""
-
+    
 
 if __name__ == "__main__":
-    log = Logger(SPI1, SPI1_CS)
-    bno = BNO055Handler(I2C0)
-    bme = BME280(I2C0)
     motor = Motor()
-    gps = GPS(UART0)
     cam = CameraReceiver(UART1)
-    arm = ArmController(I2C1)
     
-    log.sd_write("Setup completed")
-    
+    time.sleep(5)
+
     try:
-        start()
-        relaesed()
-        landing()
-        fusing()
-        avoid_para()
-        gps_guidance(0)
-        color_guidance(0)
         apriltag_guidance(0)
-        # アームによる物資回収
-        gps_guidance(1)
-        color_guidance(1)
-        apriltag_guidance(1)
-        # アームによる物資設置
-        # アームによる物資回収
-        gps_guidance(0)
-        color_guidance(0)
-        apriltag_guidance(0)
-        # アームによる物資設置
-        
+    
     finally:
         motor.stop()
         motor.disable_irq()
         time.sleep(1)
+
+
