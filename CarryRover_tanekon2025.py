@@ -10,7 +10,7 @@ import math
 import bluetooth
 import sdcard
 
-# シリアル通信のピン設8定
+# シリアル通信のピン設定
 I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
 I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
@@ -453,7 +453,7 @@ class GPS:
     
 
 class CameraReceiver:
-    def __init__(self, uart):
+        def __init__(self, uart):
         self.uart = uart
         
         time.sleep(2)
@@ -475,7 +475,6 @@ class CameraReceiver:
             
             time.sleep(0.1)
             """
-
 
     def read_camera(self):
         message = ""
@@ -501,9 +500,9 @@ class CameraReceiver:
         data = self.read_camera()
         
         if data[0] == "C":
-            if (len(data) % 4) - 1 == 0:
+            if (len(data) - 1) % 4 == 0:
                 if len(data) > 1:
-                    for i in range((len(data) - 1) / 4):
+                    for i in range((len(data) - 1) // 4):
                         color = int(data[i * 4 + 1])
                         self.color_pixels[color] = int(data[i * 4 + 2])
                         self.color_cx[color] = int(data[i * 4 + 3])
@@ -523,7 +522,7 @@ class CameraReceiver:
         if data[0] == "T":
             if len(data) > 1:
                 if (len(data) - 1) % 6 == 0:
-                    for i in range((len(data) - 1) / 6):
+                    for i in range((len(data) - 1) // 6):
                         tag_id = int(data[i * 6 + 1])
                         self.tag_detected[tag_id] = 1
                         self.tag_cx[tag_id] = int(data[i * 6 + 2])
