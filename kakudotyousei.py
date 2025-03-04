@@ -8,7 +8,7 @@ import bluetooth
 import time
 i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))
 KP_YAW=0.3#ここで比例定数を決める
-time.sleep(5)
+time.sleep(1)
 
 bno = BNO055(i2c)#bno,eulerの準備
 
@@ -556,7 +556,7 @@ ka = 0
 try:
     while True:
         #距離と角度とる
-        cam.read_tags(0)
+        camera.read_tags(0)
         distance = camera.tag_distance[2]
         ka = camera.tag_pitch[2]
         sinx = math.sin(ka)
@@ -595,10 +595,9 @@ try:
         
         time.sleep(0.1)
                 
-finally:
-        motor.stop()
-        motor.disable_irq()
-        print("stopped!")
-        
+except KeyboardInterrupt:#stopを押したときにモーターを止めるための
+                    motor.stop()
+                    motor.disable_irq()
+                    print("stopped!")
 
 
