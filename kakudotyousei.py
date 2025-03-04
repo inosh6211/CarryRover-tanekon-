@@ -556,7 +556,7 @@ ka = 0
 try:
     while True:
         #距離と角度とる
-        cam.read_tags("T0")
+        cam.read_tags(0)
         distance = camera.tag_distance[2]
         ka = camera.tag_pitch[2]
         sinx = math.sin(ka)
