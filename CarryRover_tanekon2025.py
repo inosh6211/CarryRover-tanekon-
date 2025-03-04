@@ -1,6 +1,3 @@
-"""
-・GPS誘導中に物資の保持を検知する
-"""
 from machine import Pin, PWM, I2C, SPI, UART, Timer
 from bno055 import *
 from bme280 import BME280
