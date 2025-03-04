@@ -192,7 +192,7 @@ class CameraReceiver:
         time.sleep(2)
         
 
-        # UnitVとの接続確認
+        """# UnitVとの接続確認
         while True:
             self.uart.write("1\n")
             
@@ -207,6 +207,7 @@ class CameraReceiver:
                 break
             
             time.sleep(0.1)
+            """
 
 
     def read_camera(self):
@@ -422,86 +423,7 @@ def straight_forward_t(t):
         time.sleep(0.01)
 
 #歪み補正
-class CameraReceiver:
-    def __init__(self, uart):
-        self.uart = uart
-        
-        time.sleep(2)
-        
 
-        # UnitVとの接続確認
-        """
-        while True:
-            self.uart.write("1\n")
-            
-            while not self.uart.any():
-                print("Waiting for Unitv signal...")
-                time.sleep(0.5)
-                
-            message = self.uart.readline().decode('utf-8').strip()
-            
-            if message == "1":
-                print("Unitv connected")
-                break
-            
-            time.sleep(0.1)
-            """
-
-
-    def read_camera(self):
-        message = ""
-        
-        while True:
-            if self.uart.any():
-                char = self.uart.read(1).decode('utf-8')
-                if char == "\n":
-                    break
-                message += char
-                
-                time.sleep(0.01)
-            
-        return message.split(',')
-
-    def read_color(self):
-        # 0: Red, 1: Blue, 2: Purple
-        self.color_pixels = [0] * 3
-        self.color_cx = [0] * 3
-        self.color_cy = [0] * 3
-        
-        self.uart.write("C\n")
-        data = self.read_camera()
-        
-        if data[0] == "C":
-            if (len(data) % 4) - 1 == 0:
-                if len(data) > 1:
-                    for i in range((len(data) - 1) / 4):
-                        color = int(data[i * 4 + 1])
-                        self.color_pixels[color] = int(data[i * 4 + 2])
-                        self.color_cx[color] = int(data[i * 4 + 3])
-                        self.color_cy[color] = int(data[i * 4 + 4])
-    
-    def read_tags(self, mode):
-        self.tag_detected = [0] * 10
-        self.tag_cx = [0] * 10
-        self.tag_cy = [0] * 10
-        self.tag_distance = [0] * 10
-        self.tag_roll = [0] * 10
-        self.tag_pitch = [0] * 10
-        
-        self.uart.write(f"T{mode}\n")
-        data = self.read_camera()
-
-        if data[0] == "T":
-            if len(data) > 1:
-                if (len(data) - 1) % 6 == 0:
-                    for i in range((len(data) - 1) / 6):
-                        tag_id = int(data[i * 6 + 1])
-                        self.tag_detected[tag_id] = 1
-                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
-                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
-                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
-                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
-                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
 
@@ -622,7 +544,7 @@ try:
         elif 180 <= ka<= 350:
         
             bno.reset()
-            sinx = -sinx
+            sinx = -sinx#マイナスいらない？
             motor.update_rpm(30, 30)
             motor.run(BACKWARD)
             time.sleep(2)
@@ -630,7 +552,7 @@ try:
             #もう一回角度と距離とる?
             turn_left_tag_pitch(ka)
             bno.reset()
-            go = distance*sinx
+            go = distance*sinx + 100#100は補正100mm
             t=(go/(424.115))
             straight_forward_t(t)
             turn_right_90()
@@ -646,4 +568,5 @@ except KeyboardInterrupt:#stopを押したときにモーターを止めるた�
                     motor.stop()
                     motor.disable_irq()
                     print("stopped!")
+
 
