@@ -779,14 +779,36 @@ def place_material():
     
 
 if __name__ == "__main__":
+    log = Logger(SPI1, SPI1_CS)
+    bno = BNO055Handler(I2C0)
+    bme = BME280(I2C0)
     motor = Motor()
+    gps = GPS(UART0)
     cam = CameraReceiver(UART1)
+    arm = ArmController(I2C1)
     
-    time.sleep(5)
-
+    log.sd_write("Setup completed")
+    
     try:
+        start()
+        relaesed()
+        landing()
+        fusing()
+        avoid_para()
+        gps_guidance(0)
+        color_guidance(0)
         apriltag_guidance(0)
-    
+        # アームによる物資回収
+        gps_guidance(1)
+        color_guidance(1)
+        apriltag_guidance(1)
+        # アームによる物資設置
+        # アームによる物資回収
+        gps_guidance(0)
+        color_guidance(0)
+        apriltag_guidance(0)
+        # アームによる物資設置
+        
     finally:
         motor.stop()
         motor.disable_irq()
