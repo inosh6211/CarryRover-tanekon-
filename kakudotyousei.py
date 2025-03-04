@@ -8,7 +8,9 @@ import bluetooth
 import time
 i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))
 KP_YAW=0.3#ここで比例定数を決める
-time.sleep(1)
+ble = bluetooth.BLE()
+p = BLESimplePeripheral(ble, name="RPpicoW")
+time.sleep(3)
 
 bno = BNO055(i2c)#bno,eulerの準備
 
@@ -423,50 +425,83 @@ def straight_forward_t(t):
 class CameraReceiver:
     def __init__(self, uart):
         self.uart = uart
+        
+        time.sleep(2)
+        
+
+        # UnitVとの接続確認
+        """
+        while True:
+            self.uart.write("1\n")
+            
+            while not self.uart.any():
+                print("Waiting for Unitv signal...")
+                time.sleep(0.5)
+                
+            message = self.uart.readline().decode('utf-8').strip()
+            
+            if message == "1":
+                print("Unitv connected")
+                break
+            
+            time.sleep(0.1)
+            """
+
 
     def read_camera(self):
         message = ""
-        while not self.uart.any():
-            time.sleep(0.01)
-                
-        while self.uart.any() > 0: 
-            message += self.uart.read().decode('utf-8').strip()
-            
-        data = message.split(',')
         
-        return data
+        while True:
+            if self.uart.any():
+                char = self.uart.read(1).decode('utf-8')
+                if char == "\n":
+                    break
+                message += char
+                
+                time.sleep(0.01)
+            
+        return message.split(',')
 
     def read_color(self):
-        self.uart.write("c\n")
+        # 0: Red, 1: Blue, 2: Purple
+        self.color_pixels = [0] * 3
+        self.color_cx = [0] * 3
+        self.color_cy = [0] * 3
+        
+        self.uart.write("C\n")
         data = self.read_camera()
         
-        if data[0] == "c":
-            self.color_pixels = []
-            self.color_cx = []
-            self.color_cy = []
-            
-            for color in range(3):
-                self.color_pixels.append(float(data[color*3 + 1]))
-                self.color_cx.append(float(data[color*3 + 2]))
-                self.color_cy.append(float(data[color*3 + 3]))
+        if data[0] == "C":
+            if (len(data) % 4) - 1 == 0:
+                if len(data) > 1:
+                    for i in range((len(data) - 1) / 4):
+                        color = int(data[i * 4 + 1])
+                        self.color_pixels[color] = int(data[i * 4 + 2])
+                        self.color_cx[color] = int(data[i * 4 + 3])
+                        self.color_cy[color] = int(data[i * 4 + 4])
+    
+    def read_tags(self, mode):
+        self.tag_detected = [0] * 10
+        self.tag_cx = [0] * 10
+        self.tag_cy = [0] * 10
+        self.tag_distance = [0] * 10
+        self.tag_roll = [0] * 10
+        self.tag_pitch = [0] * 10
+        
+        self.uart.write(f"T{mode}\n")
+        data = self.read_camera()
 
-    def read_tag(self):
-        self.uart.write("t\n")    
-        data = self.read_camera()
-        
-        if data[0] == "t":
-            self.tag_detected = []
-            self.tag_cx = []
-            self.tag_cy = []
-            self.tag_distance = []
-            self.tag_pitch = []
-            
-            for tag_id in range(10):
-                self.tag_detected.append(int(data[tag_id*5 + 1]))
-                self.tag_cx.append(float(data[tag_id*5 + 2]))
-                self.tag_cy.append(float(data[tag_id*5 + 3]))
-                self.tag_distance.append(float(data[tag_id*5 + 4]))
-                self.tag_pitch.append(float(data[tag_id*5 + 5]))
+        if data[0] == "T":
+            if len(data) > 1:
+                if (len(data) - 1) % 6 == 0:
+                    for i in range((len(data) - 1) / 6):
+                        tag_id = int(data[i * 6 + 1])
+                        self.tag_detected[tag_id] = 1
+                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
+                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
 
@@ -520,7 +555,9 @@ def turn_left_tag_pitch(ka):
         roll, pitch, yaw = euler()
         current_yaw = yaw
         diff=(current_yaw-init_yaw)
+        print(diff)
         if diff > (90 - (-(ka-360))):#tagと水平にしたい
+            motor.stop()
             break
 
 def turn_right_tag_pitch(ka):
@@ -533,6 +570,7 @@ def turn_right_tag_pitch(ka):
         current_yaw = yaw
         diff=(current_yaw-init_yaw)
         if diff > -(90 - ka):#tagと水平にしたい
+            motor.stop()
             break
 
 motor=Motor()
@@ -556,15 +594,16 @@ ka = 0
 try:
     while True:
         #距離と角度とる
+        print("kyo")
         camera.read_tags(0)
         distance = camera.tag_distance[2]
         ka = camera.tag_pitch[2]
         sinx = math.sin(ka)
-        print(distance)
-        if ka　>= 20:
+        print(distance, ka)
+        if 180 >=ka>= 20:
             
             bno.reset()
-            motor.run(BACKWORD)
+            #motor.run(BACKWARD)
             time.sleep(2)
             motor.stop()
             #もう一回角度と距離とる?
@@ -575,11 +614,11 @@ try:
             turn_leftt_90()
         
         
-        elif ka　<= 340:
+        elif 180 <= ka<= 340:
         
             bno.reset()
-            sinx = -sinx
-            motor.run(BACKWORD)
+            sinx = sinx#マイナスいらない？
+            #motor.run(BACKWARD)
             time.sleep(2)
             motor.stop()
             #もう一回角度と距離とる?
@@ -588,16 +627,15 @@ try:
             t=(go/(424.115))
             straight_forward_t(t)
             turn_right_90()
-        
-        elif ka < 20 or ka > 340:
+        """
+        elif ka< 20 or ka> 340:
         
             break
         
         time.sleep(0.1)
+        """
                 
 except KeyboardInterrupt:#stopを押したときにモーターを止めるための
                     motor.stop()
                     motor.disable_irq()
                     print("stopped!")
-
-
