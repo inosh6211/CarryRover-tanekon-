@@ -10,7 +10,7 @@ i2c = machine.I2C(0, sda=machine.Pin(20), scl=machine.Pin(21))
 KP_YAW=0.3#ここで比例定数を決める
 ble = bluetooth.BLE()
 p = BLESimplePeripheral(ble, name="RPpicoW")
-time.sleep(3)
+time.sleep(1)
 
 bno = BNO055(i2c)#bno,eulerの準備
 
@@ -511,7 +511,7 @@ def turn_left_90():
             roll, pitch, yaw = euler()
             init_yaw = yaw
             while True:
-                motor.update_rpm(20,20)
+                motor.update_rpm(10,10)
                 motor.run(TURN_L)
                 roll, pitch, yaw = euler()
                 current_yaw = yaw
@@ -531,7 +531,7 @@ def turn_right_90():
             roll, pitch, yaw = euler()
             init_yaw = yaw
             while True:
-                motor.update_rpm(20,20)
+                motor.update_rpm(10,10)
                 motor.run(TURN_R)
                 roll, pitch, yaw = euler()
                 current_yaw = yaw
@@ -555,6 +555,7 @@ def turn_left_tag_pitch(ka):
         roll, pitch, yaw = euler()
         current_yaw = yaw
         diff=(current_yaw-init_yaw)
+        time.sleep(0.01)
         print(diff)
         if diff > (90 - (-(ka-360))):#tagと水平にしたい
             motor.stop()
@@ -565,11 +566,12 @@ def turn_right_tag_pitch(ka):
     init_yaw = yaw
     while True:
         motor.update_rpm(10,10)
-        motor.run(TURN_L)
+        motor.run(TURN_R)
         roll, pitch, yaw = euler()
         current_yaw = yaw
-        diff=(current_yaw-init_yaw)
-        if diff > -(90 - ka):#tagと水平にしたい
+        diff=-(current_yaw-init_yaw)
+        time.sleep(0.01)
+        if diff > (90 - ka):#tagと水平にしたい
             motor.stop()
             break
 
@@ -596,46 +598,52 @@ try:
         #距離と角度とる
         print("kyo")
         camera.read_tags(0)
-        distance = camera.tag_distance[2]
+        distance = 848.23 + (2.5032*camera.tag_distance[2]-1.1803)
         ka = camera.tag_pitch[2]
-        sinx = math.sin(ka)
-        print(distance, ka)
-        if 180 >=ka>= 20:
+        sinx = math.sin(math.radians(ka))
+        print(distance, ka, sinx)
+        if 180 >=ka>= 10:
             
             bno.reset()
-            #motor.run(BACKWARD)
+            motor.update_rpm(30, 30)
+            motor.run(BACKWARD)
             time.sleep(2)
             motor.stop()
             #もう一回角度と距離とる?
             turn_right_tag_pitch(ka)
+            bno.reset()
             go = distance*sinx
             t=(go/(424.115))
+            print(t)
             straight_forward_t(t)
-            turn_leftt_90()
+            turn_left_90()
         
         
-        elif 180 <= ka<= 340:
+        elif 180 <= ka<= 350:
         
             bno.reset()
-            sinx = sinx#マイナスいらない？
-            #motor.run(BACKWARD)
+            sinx = -sinx
+            motor.update_rpm(30, 30)
+            motor.run(BACKWARD)
             time.sleep(2)
             motor.stop()
             #もう一回角度と距離とる?
             turn_left_tag_pitch(ka)
+            bno.reset()
             go = distance*sinx
             t=(go/(424.115))
             straight_forward_t(t)
             turn_right_90()
         """
-        elif ka< 20 or ka> 340:
+        elif ka< 10 or ka> 350:
         
             break
-        
-        time.sleep(0.1)
         """
+        
+        time.sleep(0.01)
                 
 except KeyboardInterrupt:#stopを押したときにモーターを止めるための
                     motor.stop()
                     motor.disable_irq()
                     print("stopped!")
+
