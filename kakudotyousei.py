@@ -560,7 +560,7 @@ try:
         distance = camera.tag_distance[2]
         ka = camera.tag_pitch[2]
         sinx = math.sin(ka)
-        
+        print(distance)
         if ka　>= 20:
             
             bno.reset()
@@ -568,7 +568,7 @@ try:
             time.sleep(2)
             motor.stop()
             #もう一回角度と距離とる?
-            turn_right_tag_pitch()
+            turn_right_tag_pitch(ka)
             go = distance*sinx
             t=(go/(424.115))
             straight_forward_t(t)
@@ -583,7 +583,7 @@ try:
             time.sleep(2)
             motor.stop()
             #もう一回角度と距離とる?
-            turn_left_tag_pitch()
+            turn_left_tag_pitch(ka)
             go = distance*sinx
             t=(go/(424.115))
             straight_forward_t(t)
