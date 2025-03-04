@@ -66,6 +66,10 @@ DEVICE_NAME = "RPpicoW"   # Bluetoorhのデバイス名
 FILE_NAME = "CarryRover"  # ログを保存するファイル名
 
 # 画像誘導
+RED    = 0
+BLUE   = 1
+PURPLE = 2
+
 KP_CAMERA = 0.05
 
 
@@ -674,8 +678,7 @@ def avoid_station():
     motor.stop()
     
 def gps_guidance(index):
-    station_color = [0, 1]
-    another_station_color = [1, 0]
+    station_color = [RED, BLUE]
     goal_lat, goal_lon = STATION[index]
     motor.enable_irq()
     
@@ -694,7 +697,7 @@ def gps_guidance(index):
         
         cam.read_color()
         
-        if cam.color_pixels[another_station_color[index]] > 4000:
+        if cam.color_pixels[station_color[index - 2]] > 4000:
             log.ble_print("Detect another station!")
             avoid_station()
             
@@ -723,17 +726,17 @@ def color_guidance(index):
     while True:
         cam.read_color()
         
-        if cam.color_pixels[1] == 0:
+        if cam.color_pixels[index] == 0:
             motor.update_rpm(10, 10)
             motor.run(TURN_R)  # 旋回 
         else:
-            cx = cam.color_cx[1]
-            rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30))
-            rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30))
+            cx = cam.color_cx[index]
+            rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30), 100)
+            rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30), 100)
             motor.update_rpm(rpm_a, rpm_b)
             motor.run(FORWARD)
                        
-        if cam.color_pixels[1] > 4000:
+        if cam.color_pixels[index] > 4000:
             motor.update_rpm(30,30)
             motor.run(FORWARD)
             time.sleep(0.5)
