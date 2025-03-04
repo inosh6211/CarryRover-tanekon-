@@ -561,6 +561,9 @@ class ArmController:
     def move_servo(self, index, target_angle):
         arm.servos.position(index, target_angle)
         arm.current_angles[index] = target_angle
+
+def constrain(value, min_val, max_val):
+        return max(min_val, min(value, max_val))
     
     
 def start():
