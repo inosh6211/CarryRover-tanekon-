@@ -643,11 +643,10 @@ def avoid_para():
         cam.read_color()
         
         if 0 < cam.color_pixels[2] <= 15000:
-            cx = cam.color_cx[2]
-            if 0 <= cx <= 120:
+            if 0 <= cam.color_cx[2] <= 120:
                 motor.update_rpm(30,30)
                 motor.run(TURN_R)
-            elif 120 < cx <= 240:
+            elif 120 < cam.color_cx[2] <= 240:
                 motor.update_rpm(30,30)
                 motor.run(TURN_L)
                     
