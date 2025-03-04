@@ -535,11 +535,11 @@ def turn_right_tag_pitch(ka):
         if diff > -(90 - ka):#tagと水平にしたい
             break
 
-motor=Motor
+motor=Motor()
 motor.enable_irq()
 motor.update_rpm(30, 30)
 
-camera = CameraReceiver
+camera = CameraReceiver(UART1)
 
 
 
@@ -556,9 +556,9 @@ ka = 0
 try:
     while True:
         #距離と角度とる
-        cam.read_tags(0)
-        distance = camera.tag_distance[tag_id]
-        ka = camera.tag_pitch[tag_id]
+        cam.read_tags("T0")
+        distance = camera.tag_distance[2]
+        ka = camera.tag_pitch[2]
         sinx = math.sin(ka)
         
         if ka　>= 20:
@@ -571,6 +571,7 @@ try:
             turn_right_tag_pitch()
             go = distance*sinx
             t=(go/(424.115))
+            straight_forward_t(t)
             turn_leftt_90()
         
         
