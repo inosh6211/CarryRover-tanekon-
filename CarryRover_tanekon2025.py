@@ -704,27 +704,24 @@ def fusing():
 #　パラシュート回避
 def avoid_para():
     while True:
-        camera_data = read_camera()
-        if camera_data is None:
-            pixels, cx, cy = 0, 0, 0  # デフォルト値
-        else:
-            pixels, cx, cy = camera_data
-
+        cam.read_color()
+        
         log.sd_write(f"Pixels: {pixels}, Center: ({cx}, {cy})")
         time.sleep(0.1)
 
-        if 0 < pixels <= 10000:
+        if 0 < cam.color_pixels[2] <= 15000:
+            cx = cam.color_cx[2]
             if 0 <= cx <= 120:
                 motor.update_rpm(30,30)
-                motor.run(TURN_RIGHT)
+                motor.run(TURN_R)
             elif 120 < cx <= 240:
                 motor.update_rpm(30,30)
-                motor.run(TURN_LEFT)
-            
-        elif 10000 < pixels: # パラシュートが近いとき
+                motor.run(TURN_L)
+                    
+        elif 15000 < cam.color_pixels[2]:#パラシュートが近いとき
             motor.stop()
             time.sleep(5)
-            
+                    
         else: 
             motor.update_rpm(30,30)
             motor.run(FORWARD)
