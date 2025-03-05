@@ -531,12 +531,13 @@ class CameraReceiver:
                 if (len(data) - 1) % 6 == 0:
                     for i in range((len(data) - 1) // 6):
                         tag_id = int(data[i * 6 + 1])
-                        self.tag_detected[tag_id] = 1
-                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
-                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
-                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
-                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
-                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
+                        if tag_id < 10:
+                            self.tag_detected[tag_id] = 1
+                            self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                            self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                            self.tag_distance[tag_id] = float(data[i * 6 + 4])
+                            self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                            self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
 # === ArmControllerクラス ===
@@ -625,6 +626,29 @@ class ArmController:
                     return False
 
                 time.sleep(0.2)
+                
+                
+    def angle_fit(self, target_id):
+        search_direction = 1
+        while True:
+            result = self.search_and_grab(self.cam, target_id)
+            if result:
+                print("catch")
+                return True
+            else:
+                print("retry")
+                next_angle = self.current_angles[0] + (20 * search_direction)
+                if next_angle >= 180:
+                    next_angle = 180
+                    search_direction = -1
+                elif next_angle <= 0:
+                    next_angle = 0
+                    search_direction = 1
+
+                self.move_servo(0, next_angle)
+                time.sleep(0.5)
+                self.search_position2()  # 再探索位置
+                
     
 # スタート判定
 def start():
@@ -863,11 +887,13 @@ def apriltag_guidance(index):
 
 # 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
 def collect_material(index):
-    """物資回収の関数を書く"""
-
-# 物資設置(index=0で地上局0での制御、index=1で地上局1での制御)
-def place_material(index):
-    """物資設置の関数を書く"""
+    self.arm.search_position2()
+    
+    self.angle_fit(index)
+    time.sleep(0.5)
+        
+    self.arm.moving_position()
+    time.sleep(1)
     
 
 if __name__ == "__main__":
@@ -883,7 +909,7 @@ if __name__ == "__main__":
     
     try:
         start()
-        released()
+        relaesed()
         landing()
         fusing()
         gps_guidance(0)
@@ -893,12 +919,12 @@ if __name__ == "__main__":
         gps_guidance(1)
         color_guidance(1)
         apriltag_guidance(1)
-        place_material(1):
+        arm.place_object()
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
         apriltag_guidance(0)
-        place_material(0)
+        arm.place_object()
         
         log.sd_write("Mission completed!")
         
