@@ -602,7 +602,7 @@ class ArmController:
     def angle_fit(self, target_id):
         search_direction = 1
         while True:
-            result = self.search_and_grab(self.cam, target_id)
+            result = self.search_and_grab(cam, target_id)
             if result:
                 print("catch")
                 return True
@@ -812,8 +812,8 @@ def color_guidance(index):
             motor.run(TURN_R)  # 旋回 
         else:
             cx = cam.color_cx[index]
-            rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30), 100)
-            rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30), 100)
+            rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
+            rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30, 100))
             motor.update_rpm(rpm_a, rpm_b)
             motor.run(FORWARD)
                             
