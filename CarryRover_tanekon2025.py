@@ -303,8 +303,6 @@ class Motor:
                 break
             time.sleep(0.01)
             
-            
-            
     def straight_forward_t(self, distance, rpm):
         start=time.ticks_ms()
         t = distance / (135 * math.pi * (rpm /60))
@@ -321,7 +319,7 @@ class Motor:
             self.run(FORWARD)
             print(f"L{diff}")
             now = time.ticks_ms()
-            if time.time() - start >= t:
+            if time.ticks_ms() - start >= t:
                 motor.stop()
                 break
             time.sleep(0.01)
@@ -860,12 +858,12 @@ def apriltag_guidance(index):
 
 # 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
 def collect_material(index):
-    self.arm.search_position2()
+    arm.search_position2()
     
-    self.angle_fit(index)
+    arm.angle_fit(index)
     time.sleep(0.5)
         
-    self.arm.moving_position()
+    arm.moving_position()
     time.sleep(1)
     
 
