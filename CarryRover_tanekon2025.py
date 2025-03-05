@@ -305,9 +305,9 @@ class Motor:
             
             
             
-    def straight_forward_t(distance, rpm):
+    def straight_forward_t(self, distance, rpm):
         start=time.ticks_ms()
-        time = distance / (135 * math.pi * (rpm /60)3)
+        time = distance / (135 * math.pi * (rpm /60))
         bno.compute_euler()
         curret_yaw = (-bno.yaw + 360) % 360#init_yawは最初にとったののみにしたいので、変える
         while True:
@@ -507,9 +507,9 @@ class CameraReceiver:
         data = self.read_camera()
         
         if data[0] == "C":
-            if (len(data) % 4) - 1 == 0:
+            if (len(data) - 1) % 4 == 0:
                 if len(data) > 1:
-                    for i in range((len(data) - 1) / 4):
+                    for i in range((len(data) - 1) // 4):
                         color = int(data[i * 4 + 1])
                         self.color_pixels[color] = int(data[i * 4 + 2])
                         self.color_cx[color] = int(data[i * 4 + 3])
@@ -529,7 +529,7 @@ class CameraReceiver:
         if data[0] == "T":
             if len(data) > 1:
                 if (len(data) - 1) % 6 == 0:
-                    for i in range((len(data) - 1) / 6):
+                    for i in range((len(data) - 1) // 6):
                         tag_id = int(data[i * 6 + 1])
                         self.tag_detected[tag_id] = 1
                         self.tag_cx[tag_id] = int(data[i * 6 + 2])
@@ -744,7 +744,7 @@ def gps_guidance(index):
     goal_lat, goal_lon = STATION[index]
     motor.enable_irq()
     
-    motor.run_straight(1, 30)
+    motor.straight_forward_t(1, 30)
     
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
@@ -884,7 +884,7 @@ if __name__ == "__main__":
     
     try:
         start()
-        relaesed()
+        released()
         landing()
         fusing()
         gps_guidance(0)
