@@ -532,46 +532,57 @@ class CameraReceiver:
                             self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
-# === ArmControllerクラス ===
 class ArmController:
     def __init__(self, i2c):
         self.servos = Servos(i2c)
         self.servos.pca9685.freq(50)
-        self.init_angles = [60, 120, 100, 150, 80]
-        
+        self.init_angles = [180, 170, 0, 0, 0]
         self.current_angles = self.init_angles[:]
-
+        
     def move_servo(self, index, angle):
-        angle = max(0, min(180, angle))
+        angle=max(0,min(180,angle))
         self.servos.position(index, angle)
         self.current_angles[index] = angle
-
+        
     def move_smoothly(self, index, target_angle, delay=0.025):
-        step = 1 if target_angle > self.current_angles[index] else -1
+        if target_angle > self.current_angles[index]:
+            step = 1
+        else:
+            step = -1
         for angle in range(self.current_angles[index], target_angle, step):
             self.move_servo(index, angle)
             time.sleep(delay)
         self.move_servo(index, target_angle)
-
+        
     def reset_position(self):
         for i, angle in enumerate(self.init_angles):
             self.move_smoothly(i, angle)
-
+                 
+    def search_position1(self):
+        self.move_smoothly(2, 90)
+        self.move_smoothly(1, 90)
+        self.move_smoothly(0, 80)
+        self.move_smoothly(1, 170)
+        self.move_smoothly(3, 110)
+        self.move_smoothly(4, 80)
+        
+    def moving_position(self):
+        self.move_smoothly(1, 170)
+        self.move_smoothly(2, 90)
+        self.move_smoothly(3, 100)
+        self.move_smoothly(0, 90)
+        
     def place_object(self):
         self.move_smoothly(0, 120)
-        self.move_smoothly(1, 140)
-        self.move_smoothly(3, 120)
-        self.move_smoothly(2, 70)
-               
+        self.move_smoothly(1, 120)
         self.move_smoothly(4, 80)
-
-    def search_position(self):
-        self.move_smoothly(1, 90)
-        self.move_smoothly(2, 100)
+        
+    def search_position2(self):
+        self.move_smoothly(1, 110)
+        self.move_smoothly(2, 120)
         self.move_smoothly(3, 110)
         self.move_smoothly(0, 60)
-        self.move_smoothly(4, 80)
-
+        
     def search_and_grab(self, cam, target_id):
         for angle in range(self.current_angles[3], 30, -2):
             self.move_servo(3, angle)
@@ -588,36 +599,6 @@ class ArmController:
                 self.move_smoothly(0, self.current_angles[0] - 1)
             else:
                 break
-            
-        while True:
-            miss_count = 0
-            
-            while True:
-                cam.read_tags(0)
-                
-                if  cam.tag_detected[target_id] and cam.tag_distance[target_id] < 4:
-                    print(cam.tag_distance[target_id])
-                    self.move_servo(3, self.current_angles[3]+10)
-                    self.move_servo(4, 0)
-                    break
-                               
-                if cam.tag_detected[target_id]:
-                    if cam.tag_cy[target_id] > 180:
-                        self.move_servo(3, self.current_angles[3] - 1)
-                    elif cam.tag_cy[target_id] < 140:
-                        self.move_servo(3, self.current_angles[3] + 1)
-                    else:
-                        self.move_smoothly(1, self.current_angles[1] - 1)
-                                       
-                
-                else:
-                    miss_count += 1
-                
-                if miss_count > 5:
-                    print("target out of range")
-                    return False
-
-                time.sleep(0.2)
                 
                 
     def angle_fit(self, target_id):
