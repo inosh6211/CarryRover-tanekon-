@@ -597,7 +597,38 @@ class ArmController:
                 self.move_smoothly(0, self.current_angles[0] - 1)
             else:
                 break
+            
+        
+        catch = False    
+        while True:
+            cam.read_tags(0)
+            miss_count = 0
+            if  cam.tag_detected[target_id] and cam.tag_distance[target_id] < 4:
+                print(cam.tag_distance[target_id])
+                self.move_servo(3, self.current_angles[3]+10)
+                self.move_smoothly(4, 0)
+                catch = True
+                return True
+            
+                           
+            if cam.tag_detected[target_id]:
                 
+                if cam.tag_cy[target_id] > 180:
+                    self.move_servo(3, self.current_angles[3] - 1)
+                elif cam.tag_cy[target_id] < 140:
+                    self.move_servo(3, self.current_angles[3] + 1)
+                else:
+                    self.move_smoothly(1, self.current_angles[1] - 1)
+                                   
+            
+            else:
+                miss_count += 1
+            
+            if miss_count > 50:
+                print("target out of range")
+                return False
+
+            time.sleep(0.2)
                 
     def angle_fit(self, target_id):
         search_direction = 1
