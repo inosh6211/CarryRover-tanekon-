@@ -846,8 +846,8 @@ def apriltag_guidance(index):
             
         if cam.tag_detected[6]:
             cx = cam.tag_cx[6]
-            rpm_a = constrain(-KP_CAMERA * (cx - 120) + 20 , 0, 100)
-            rpm_b = constrain(KP_CAMERA * (cx - 120) + 20 , 0, 100)
+            rpm_a = min(max(-KP_CAMERA * (cx - 120) + 20, 0), 100)
+            rpm_b = min(max(KP_CAMERA * (cx - 120) + 20, 0), 100)
             motor.update_rpm(rpm_a, rpm_b)
             motor.run(FORWARD)
             
