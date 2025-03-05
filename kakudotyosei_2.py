@@ -400,7 +400,7 @@ def april_tag_alignment():
         # カメラからタグ情報を取得（read_tags(0)でtag_distance, tag_pitch等が更新される）
         camera.read_tags(0)
         # 距離補正式
-        corrected_distance = 848.23 + (2.5032 * camera.tag_distance[2] - 1.1803)
+        corrected_distance = 424.115 + (2.5032 * camera.tag_distance[2] - 1.1803)
         # タグのピッチ角（°）を取得
         ka = camera.tag_pitch[2]
         sinx = math.sin(math.radians(ka))
@@ -430,9 +430,9 @@ def april_tag_alignment():
                 time.sleep(0.01)
             
             # ③前進：前進すべき距離は　go = corrected_distance * |sin(ka)|　とし、
-            #     移動時間は　t = go / 424.115 　（※係数は現地調整の換算値）
+            #     移動時間は　t = go / 212.0575 　（※係数は現地調整の換算値）
             go = corrected_distance * abs(sinx)
-            t_time = go / 424.115  # 単位：秒
+            t_time = go / 212.0575  # 単位：秒
             start_time = time.ticks_ms()
             motor.update_rpm(30, 30)
             while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
@@ -478,9 +478,9 @@ def april_tag_alignment():
                 time.sleep(0.01)
             
             # ③前進：前進すべき距離は同様に　go = corrected_distance * |sin(ka)|、
-            #     移動時間 t = go / 424.115
+            #     移動時間 t = go / 212.0575
             go = corrected_distance * abs(sinx)
-            t_time = go / 424.115
+            t_time = go / 212.0575
             start_time = time.ticks_ms()
             motor.update_rpm(30, 30)
             while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
