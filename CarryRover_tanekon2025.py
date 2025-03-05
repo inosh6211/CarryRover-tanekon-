@@ -319,7 +319,7 @@ class Motor:
             self.run(FORWARD)
             print(f"L{diff}")
             now = time.ticks_ms()
-            if time.ticks_ms() - start >= t:
+            if (time.ticks_ms() - start) / 1000 >= t:
                 motor.stop()
                 break
             time.sleep(0.01)
