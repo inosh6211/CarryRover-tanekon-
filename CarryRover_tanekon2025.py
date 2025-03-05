@@ -196,7 +196,6 @@ class BNO055Handler:
     def get_accel(self):
         self.accel_x, self.accel_y, self.accel_z = self.bno055.accel()
         
-
 class Motor:
     def __init__(self):
         self.AIN1 = AIN1
@@ -285,47 +284,56 @@ class Motor:
         self.rate_a = 20
         self.rate_b = 20
         self.state = 0
-    
-    def run_straight(distance, rpm):  # 距離はm単位
-        start = time.ticks_ms()
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.update_rpm(rpm, rpm)
+        
+    def soutai_turn(self, angle, init_yaw):
         while True:
-            motor.run(FORWARD)
+            self.update_rpm(10,10)
+            if angle > 0:
+                self.run(TURN_R)
+            elif angle < 0:
+                self.run(TURN_L)
             bno.compute_euler()
             current_yaw = (-bno.yaw + 360) % 360
-            diff = ((current_yaw - init_yaw + 180) % 360) - 180
-            rpm_a = -KP_YAW * diff + rpm
-            rpm_b = KP_YAW * diff + rpm
-            motor.update_rpm(rpm_a, rpm_b)
-            motor.run(FORWARD)
-            now = time.ticks_ms()
-            if (now - start_time) / 1000 >= distance / (0.135 * math.pi() * rpm / 60) :
-                break
-                    
-            time.sleep(0.1)
-    
-    # 正：右回転、負：左回転
-    def turn_by_angle(angle, rpm):
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.update_rpm(rpm, rpm)
-        while True:
-            if angle > 0
-                motor.run(TURN_R)
-            else:
-                motor.run(TURN_L)
+            diff = ((current_yaw - init_yaw + 540) % 360) - 180
                 
-            bno.compute_euler()
-            current_yaw = (-bno.yaw + 360) % 360
-            diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                
-            if (angle > 0 and diff >= angle) or (angle < 0 and diff <= angle):
-                motor.stop()
+            print(diff)
+            if abs(angle) - 1 <= abs(diff):#358to2とかで359とかでとまったときにdiff >= 90認定されないように
+                self.stop()
+                print("stop")
                 break
+            time.sleep(0.01)
             
-            time.sleep(0.1)
+            
+            
+    def straight_forward_t(distance, rpm):
+        start=time.ticks_ms()
+        time = distance / (135 * math.pi * (rpm /60)3)
+        bno.compute_euler()
+        curret_yaw = (-bno.yaw + 360) % 360#init_yawは最初にとったののみにしたいので、変える
+        while True:
+            print(f"RESET")
+            self.update_rpm(rpm, rpm)
+            self.run(FORWARD)
+            bno.compute_euler()
+            current_yaw = (-bno.yaw + 360) % 360
+            diff = ((current_yaw - init_yaw + 540) % 360) - 180
+            print(diff)
+            
+            while True:
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360
+                diff = ((current_yaw - init_yaw + 540) % 360) - 180
+                rate_a=-KP_YAW*diff+30
+                rate_b=KP_YAW*diff+30
+                self.update_rpm(rate_a, rate_b)
+                self.run(FORWARD)
+                print(f"L{diff}")
+                now = time.ticks_ms()
+                if time.time() - start >= t:
+                    motor.stop()
+                    break
+                time.sleep(0.01)
+
 
     def compute_rpm(self, pulse_count, interval):
         if interval <= 0:
@@ -380,6 +388,7 @@ class Motor:
         self.OUTA_A.irq(handler=None)
         self.OUTA_B.irq(handler=None)
         self.timer.deinit()
+
 
 
 class GPS:
