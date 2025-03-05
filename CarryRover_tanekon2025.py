@@ -307,32 +307,24 @@ class Motor:
             
     def straight_forward_t(self, distance, rpm):
         start=time.ticks_ms()
-        time = distance / (135 * math.pi * (rpm /60))
+        t = distance / (135 * math.pi * (rpm /60))
         bno.compute_euler()
-        curret_yaw = (-bno.yaw + 360) % 360#init_yawは最初にとったののみにしたいので、変える
+        init_yaw = (-bno.yaw + 360) % 360
+            
         while True:
-            print(f"RESET")
-            self.update_rpm(rpm, rpm)
-            self.run(FORWARD)
             bno.compute_euler()
             current_yaw = (-bno.yaw + 360) % 360
             diff = ((current_yaw - init_yaw + 540) % 360) - 180
-            print(diff)
-            
-            while True:
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 540) % 360) - 180
-                rate_a=-KP_YAW*diff+30
-                rate_b=KP_YAW*diff+30
-                self.update_rpm(rate_a, rate_b)
-                self.run(FORWARD)
-                print(f"L{diff}")
-                now = time.ticks_ms()
-                if time.time() - start >= t:
-                    motor.stop()
-                    break
-                time.sleep(0.01)
+            rate_a=-KP_YAW*diff+30
+            rate_b=KP_YAW*diff+30
+            self.update_rpm(rate_a, rate_b)
+            self.run(FORWARD)
+            print(f"L{diff}")
+            now = time.ticks_ms()
+            if time.time() - start >= t:
+                motor.stop()
+                break
+            time.sleep(0.01)
 
 
     def compute_rpm(self, pulse_count, interval):
@@ -909,7 +901,7 @@ if __name__ == "__main__":
     
     try:
         start()
-        relaesed()
+        released()
         landing()
         fusing()
         gps_guidance(0)
