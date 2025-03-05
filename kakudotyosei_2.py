@@ -472,9 +472,8 @@ def april_tag_alignment():
                 bno.compute_euler()
                 current_yaw = (-bno.yaw + 360) % 360
                 diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                if diff >= (450 - ka):
+                if diff > (90 - (-(ka-360))):#tagと水平にしたい
                     motor.stop()
-                    break
                 time.sleep(0.01)
             
             # ③前進：前進すべき距離は同様に　go = corrected_distance * |sin(ka)|、
