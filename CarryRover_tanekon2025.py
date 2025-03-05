@@ -10,7 +10,7 @@ import math
 import bluetooth
 import sdcard
 
-# シリアル通信のピン設定
+# シリアル通信のピン設8定
 I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
 I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
@@ -453,12 +453,11 @@ class GPS:
     
 
 class CameraReceiver:
-        def __init__(self, uart):
+    def __init__(self, uart):
         self.uart = uart
         
         time.sleep(2)
         
-        """
         # UnitVとの接続確認
         while True:
             self.uart.write("1\n")
@@ -474,7 +473,6 @@ class CameraReceiver:
                 break
             
             time.sleep(0.1)
-            """
 
     def read_camera(self):
         message = ""
@@ -500,9 +498,9 @@ class CameraReceiver:
         data = self.read_camera()
         
         if data[0] == "C":
-            if (len(data) - 1) % 4 == 0:
+            if (len(data) % 4) - 1 == 0:
                 if len(data) > 1:
-                    for i in range((len(data) - 1) // 4):
+                    for i in range((len(data) - 1) / 4):
                         color = int(data[i * 4 + 1])
                         self.color_pixels[color] = int(data[i * 4 + 2])
                         self.color_cx[color] = int(data[i * 4 + 3])
@@ -522,7 +520,7 @@ class CameraReceiver:
         if data[0] == "T":
             if len(data) > 1:
                 if (len(data) - 1) % 6 == 0:
-                    for i in range((len(data) - 1) // 6):
+                    for i in range((len(data) - 1) / 6):
                         tag_id = int(data[i * 6 + 1])
                         self.tag_detected[tag_id] = 1
                         self.tag_cx[tag_id] = int(data[i * 6 + 2])
@@ -532,40 +530,94 @@ class CameraReceiver:
                         self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
+# === ArmControllerクラス ===
 class ArmController:
     def __init__(self, i2c):
         self.servos = Servos(i2c)
         self.servos.pca9685.freq(50)
+        self.init_angles = [60, 120, 100, 150, 80]
         
-        # アームの初期位置
-        self.init_angles = [110, 170, 0, 10, 0]
         self.current_angles = self.init_angles[:]
-        
-        for i in range(5):
-            self.servos.position(i, self.init_angles[i])
-            
-    def move_smoothly(self, index, target_angle):
-        current_angle = self.current_angles[index]
-        
-        while current_angle != target_angle:
-            if current_angle < target_angle:
-                current_angle += 1
-            elif current_angle > target_angle:
-                current_angle -= 1
-                
-            self.servos.position(index, current_angle)
-            time.sleep(0.02)
-            
-            self.current_angles[index] = current_angle
-    
-    def move_servo(self, index, target_angle):
-        arm.servos.position(index, target_angle)
-        arm.current_angles[index] = target_angle
 
-def constrain(value, min_val, max_val):
-        return max(min_val, min(value, max_val))
+    def move_servo(self, index, angle):
+        angle = max(0, min(180, angle))
+        self.servos.position(index, angle)
+        self.current_angles[index] = angle
+
+    def move_smoothly(self, index, target_angle, delay=0.025):
+        step = 1 if target_angle > self.current_angles[index] else -1
+        for angle in range(self.current_angles[index], target_angle, step):
+            self.move_servo(index, angle)
+            time.sleep(delay)
+        self.move_servo(index, target_angle)
+
+    def reset_position(self):
+        for i, angle in enumerate(self.init_angles):
+            self.move_smoothly(i, angle)
+
+    def place_object(self):
+        self.move_smoothly(0, 120)
+        self.move_smoothly(1, 140)
+        self.move_smoothly(3, 120)
+        self.move_smoothly(2, 70)
+               
+        self.move_smoothly(4, 80)
+
+    def search_position(self):
+        self.move_smoothly(1, 90)
+        self.move_smoothly(2, 100)
+        self.move_smoothly(3, 110)
+        self.move_smoothly(0, 60)
+        self.move_smoothly(4, 80)
+
+    def search_and_grab(self, cam, target_id):
+        for angle in range(self.current_angles[3], 30, -2):
+            self.move_servo(3, angle)
+            cam.read_tags(0)
+            
+            if cam.tag_detected[target_id]:
+                break
+
+        while True:
+            cam.read_tags(0)
+            if cam.tag_cx[target_id] < 110:
+                self.move_smoothly(0, self.current_angles[0] + 1)
+            elif cam.tag_cx[target_id] > 130:
+                self.move_smoothly(0, self.current_angles[0] - 1)
+            else:
+                break
+            
+        while True:
+            miss_count = 0
+            
+            while True:
+                cam.read_tags(0)
+                
+                if  cam.tag_detected[target_id] and cam.tag_distance[target_id] < 4:
+                    print(cam.tag_distance[target_id])
+                    self.move_servo(3, self.current_angles[3]+10)
+                    self.move_servo(4, 0)
+                    break
+                               
+                if cam.tag_detected[target_id]:
+                    if cam.tag_cy[target_id] > 180:
+                        self.move_servo(3, self.current_angles[3] - 1)
+                    elif cam.tag_cy[target_id] < 140:
+                        self.move_servo(3, self.current_angles[3] + 1)
+                    else:
+                        self.move_smoothly(1, self.current_angles[1] - 1)
+                                       
+                
+                else:
+                    miss_count += 1
+                
+                if miss_count > 5:
+                    print("target out of range")
+                    return False
+
+                time.sleep(0.2)
     
-    
+# スタート判定
 def start():
     init_pressure = bme.pressure()
     
@@ -573,21 +625,22 @@ def start():
         current_pressure = bme.pressure()
         diff_pressure = current_pressure - init_pressure
         bno.compute_euler()
+        log.sd_write(f"Roll angle: {bno.roll}, pressure change: {diff_pressure}")
         
         if abs(bno.roll) > 45 and abs(bno.roll) < 135 and diff_pressure < -1:
             log.sd_write("Mission start!")
             break
-        else:
-            log.sd_write(f"Roll angle: {bno.roll}, pressure change: {diff_pressure}")
         
         time.sleep(0.1)
 
+# 放出判定
 def released():
     count = 0
     
     while True:
         bno.compute_euler()
         roll = bno.roll
+        log.sd_write(f"Roll angle: {roll}")
         
         if abs(roll) < 45:
           count += 1
@@ -598,9 +651,9 @@ def released():
             log.sd_write("Released")
             break
         
-        log.sd_write(f"Roll angle: {roll}")
         time.sleep(0.1)
 
+# 着地判定
 def landing():
     count = 0
     bno.compute_euler()
@@ -616,6 +669,7 @@ def landing():
         diff_pressure = current_pressure - init_pressure
         init_roll = current_roll
         init_pressure = current_pressure
+        log.sd_write(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
         
         if abs(diff_roll) < 1 and abs(diff_pressure) < 0.1:
           count += 1
@@ -629,35 +683,44 @@ def landing():
             log.sd_write("Landing")
             break
         
-        log.sd_write(f"Roll angle change: {diff_roll}, pressure change: {diff_pressure}")
         time.sleep(0.5)
 
+# 溶断
 def fusing():
     FUSING_GPIO.on()
     time.sleep(0.3)
     FUSING_GPIO.off()
     log.sd_write("Fusing completed")
 
+#　パラシュート回避
 def avoid_para():
     while True:
-        cam.read_color()
-        
-        if 0 < cam.color_pixels[2] <= 15000:
-            if 0 <= cam.color_cx[2] <= 120:
+        camera_data = read_camera()
+        if camera_data is None:
+            pixels, cx, cy = 0, 0, 0  # デフォルト値
+        else:
+            pixels, cx, cy = camera_data
+
+        log.sd_write(f"Pixels: {pixels}, Center: ({cx}, {cy})")
+        time.sleep(0.1)
+
+        if 0 < pixels <= 10000:
+            if 0 <= cx <= 120:
                 motor.update_rpm(30,30)
-                motor.run(TURN_R)
-            elif 120 < cam.color_cx[2] <= 240:
+                motor.run(TURN_RIGHT)
+            elif 120 < cx <= 240:
                 motor.update_rpm(30,30)
-                motor.run(TURN_L)
-                    
-        elif 15000 < cam.color_pixels[2]:#パラシュートが近いとき
+                motor.run(TURN_LEFT)
+            
+        elif 10000 < pixels: # パラシュートが近いとき
             motor.stop()
-            time.sleep(10)
-                    
+            time.sleep(5)
+            
         else: 
             motor.update_rpm(30,30)
             motor.run(FORWARD)
 
+# 目的地以外の地上局を避ける
 def avoid_station():
     motor.enable_irq()
     motor.update_rpm(30, 30)
@@ -669,16 +732,41 @@ def avoid_station():
     time.sleep(1)
     motor.stop()
     
+# GPS誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def gps_guidance(index):
     station_color = [RED, BLUE]
     goal_lat, goal_lon = STATION[index]
     motor.enable_irq()
     
+    motor.run_straight(1, 30)
+    
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
         log.ble_print("Waiting for GPS signal...")
         time.sleep(1)
+    
+    while True:
+        gps.read_nmea()
+        gps.update_data(goal_lat, goal_lon)
+        bno.compute_heading()
+        bno.compute_euler()
+        azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
+        log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
+        
+        motor.run(TURN_R)
+        
+        if azimuth_error > 20:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)
             
+        elif azimuth_error < -20:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_L)
+        else:
+            break
+    
+    avoid_para()
+        
     while True:
         gps.read_nmea()
         gps.update_data(goal_lat, goal_lon)
@@ -711,7 +799,8 @@ def gps_guidance(index):
             motor.run(FORWARD)
         
         time.sleep(0.1)
-    
+
+# 色認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def color_guidance(index):
     motor.enable_irq()
         
@@ -727,8 +816,8 @@ def color_guidance(index):
             rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30), 100)
             motor.update_rpm(rpm_a, rpm_b)
             motor.run(FORWARD)
-                       
-        if cam.color_pixels[index] > 4000:
+                            
+        if cam.color_pixels[index] > 2000:
             motor.update_rpm(30,30)
             motor.run(FORWARD)
             time.sleep(0.5)
@@ -738,6 +827,7 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
+# エイプリルタグによる誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     motor.enable_irq()
@@ -765,11 +855,13 @@ def apriltag_guidance(index):
                 motor.stop()
                 motor.disable_irq()
                 break
-    
-def collect_material():
+
+# 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
+def collect_material(index):
     """物資回収の関数を書く"""
 
-def place_material():
+# 物資設置(index=0で地上局0での制御、index=1で地上局1での制御)
+def place_material(index):
     """物資設置の関数を書く"""
     
 
@@ -789,20 +881,21 @@ if __name__ == "__main__":
         relaesed()
         landing()
         fusing()
-        avoid_para()
         gps_guidance(0)
         color_guidance(0)
         apriltag_guidance(0)
-        # アームによる物資回収
+        collect_material(0)
         gps_guidance(1)
         color_guidance(1)
         apriltag_guidance(1)
-        # アームによる物資設置
-        # アームによる物資回収
+        place_material(1):
+        color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
         apriltag_guidance(0)
-        # アームによる物資設置
+        place_material(0)
+        
+        log.sd_write("Mission completed!")
         
     finally:
         motor.stop()
