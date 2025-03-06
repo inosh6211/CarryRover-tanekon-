@@ -1085,6 +1085,8 @@ if __name__ == "__main__":
     
     log.sd_write("Setup completed")
     
+    time.sleep(2)
+    
     try:
         start()
         released()
