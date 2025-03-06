@@ -769,7 +769,7 @@ def gps_guidance(index):
     goal_lat, goal_lon = STATION[index]
     motor.enable_irq()
     
-    motor.straight_forward_t(1, 30)
+    motor.straight_forward_t(1000, 30)
     
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
@@ -783,8 +783,6 @@ def gps_guidance(index):
         bno.compute_euler()
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
         log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
-        
-        motor.run(TURN_R)
         
         if azimuth_error > 20:
             motor.update_rpm(10, 10)
