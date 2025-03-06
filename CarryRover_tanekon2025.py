@@ -858,35 +858,211 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
-# エイプリルタグによる誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
-def apriltag_guidance(index):
-    station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
+def apriltag_alignment():
+    motor = Motor()
     motor.enable_irq()
+    motor.update_rpm(30, 30)
     
     while True:
         cam.read_tags(0)
+        # 補正距離
+        corrected_distance = 424.115 + (2.5032 * cam.tag_distance[2] - 1.1803)
+        ka = cam.tag_pitch[2]
+        sinx = math.sin(math.radians(ka))
+        #print("Corrected distance:", corrected_distance, "Pitch:", ka, "sin:", sinx)
         
-        while not any(cam.tag_detected[i] for i in station_tag[index]):
-            bno.compute_euler()
-            init_yaw = bno.yaw
-            motor.update_rpm(15, 15)
-            motor.run(TURN_R)  # 旋回
-            time.sleep(0.3)
+        if 10 <= ka <= 180:
+            bno.reset()  
+            motor.update_rpm(30, 30)
+            motor.run(BACKWARD)
+            time.sleep(2)
             motor.stop()
-            cam.read_tags(0)
             
-        if cam.tag_detected[6]:
-            cx = cam.tag_cx[6]
-            rpm_a = min(max(-KP_CAMERA * (cx - 120) + 20, 0), 100)
-            rpm_b = min(max(KP_CAMERA * (cx - 120) + 20, 0), 100)
-            motor.update_rpm(rpm_a, rpm_b)
-            motor.run(FORWARD)
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            # 右旋回による正対調整
+            while True:
+                motor.update_rpm(10, 10)
+                motor.run(TURN_R)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360
+                diff = ((current_yaw - init_yaw + 180) % 360) - 180
+                if diff >= (90 - ka):
+                    motor.stop()
+                    break
+                time.sleep(0.01)
             
-            if cam.tag_distance[6] < 8:
-                motor.stop()
-                motor.disable_irq()
-                break
+            go = corrected_distance * abs(sinx)
+            t_time = go / 212.0575  # 直進時間（秒）
+            start_time = time.ticks_ms()
+            motor.update_rpm(30, 30)
+            while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
+                motor.run(FORWARD)
+                time.sleep(0.01)
+            motor.stop()
+            
+            bno.reset()
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            # 左旋回 90°
+            while True:
+                motor.update_rpm(10, 10)
+                motor.run(TURN_L)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360
+                diff = ((current_yaw - init_yaw + 180) % 360) - 180
+                if diff >= 90:
+                    motor.stop()
+                    break
+                time.sleep(0.01)
+            break  
+        
+        elif 180 <= ka <= 350:
+            bno.reset()
+            motor.update_rpm(30, 30)
+            motor.run(BACKWARD)
+            time.sleep(2)
+            motor.stop()
+            
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            # 左旋回による正対調整
+            while True:
+                motor.update_rpm(10, 10)
+                motor.run(TURN_L)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360
+                diff = ((current_yaw - init_yaw + 180) % 360) - 180
+                if diff > (90 - (-(ka-360))):
+                    motor.stop()
+                    break
+                time.sleep(0.01)
+            
+            go = corrected_distance * abs(sinx)
+            t_time = go / 212.0575
+            start_time = time.ticks_ms()
+            motor.update_rpm(30, 30)
+            while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
+                motor.run(FORWARD)
+                time.sleep(0.01)
+            motor.stop()
+            
+            bno.reset()
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            # 右旋回 90°
+            while True:
+                motor.update_rpm(10, 10)
+                motor.run(TURN_R)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360
+                diff = ((current_yaw - init_yaw + 180) % 360) - 180
+                if diff >= 90:
+                    motor.stop()
+                    break
+                time.sleep(0.01)
+            break
+        
+        time.sleep(0.01)
+    motor.disable_irq()
 
+
+# エイプリルタグによる誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
+def apriltag_guidance(index):
+    station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
+    target_ids = station_tag[index]
+    # コーンの半径（mm）
+    CONES_RADIUS = 100
+    motor.enable_irq()
+    detected_id = None
+
+    while True:
+        cam.read_tags(0)
+        for tid in target_ids:
+            if cam.tag_detected[tid]:
+                detected_id = tid
+                log.sd_write(f"Detected tag ID: {detected_id}")
+                break
+        if detected_id is not None:
+            break
+        else:
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)
+            time.sleep(0.5)
+            motor.stop()
+            time.sleep(0.1)
+    
+    # 直進：タグまでの距離が20cmになるまで前進
+    while True:
+        cam.read_tags(0)
+        if not cam.tag_detected[detected_id]:
+            log.sd_write("Tag lost. Initiating recovery spin.")
+            motor.update_rpm(10, 10)
+            motor.run(TURN_R)
+            time.sleep(0.5)
+            motor.stop()
+            continue
+        if cam.tag_distance[detected_id] <= 20:
+            motor.stop()
+            
+            if detected_id in [2, 6]:
+                log.sd_write(f"Goal achieved: Directly in front of tag ID {detected_id}.")
+                break
+            else:
+                break
+        else:
+            motor.update_rpm(30, 30)
+            motor.run(FORWARD)
+        time.sleep(0.05)
+    
+    # タグID による追加動作
+    if detected_id in [2, 6]:
+        log.sd_write(f"Tag ID {detected_id}: In position. No further maneuver needed.")
+    
+    elif detected_id in [4, 8]:
+        log.sd_write(f"Tag ID {detected_id}: Executing maneuver: right 90°, forward (r+20), left 90°, forward (r+20), left 90°")
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(90, init_yaw)  # 右90°旋回
+        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+        
+    elif detected_id in [3, 7]:
+        log.sd_write(f"Tag ID {detected_id}: Executing maneuver: left 90°, forward (r+20), right 90°, forward (r+20), right 90°")
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(90, init_yaw)   # 右90°旋回
+        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(90, init_yaw)   # 右90°旋回
+        
+    elif detected_id in [5, 9]:
+        log.sd_write(f"Tag ID {detected_id}: Executing maneuver: right 90°, forward (2*r+20), left 90°, forward (r+20), left 90°")
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(90, init_yaw)   # 右90°旋回
+        motor.straight_forward_t(2 * CONES_RADIUS + 20, 30)
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+    
+    motor.disable_irq()
+   
 # 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
 def collect_material(index):
     arm.search_position2()
@@ -916,15 +1092,18 @@ if __name__ == "__main__":
         fusing()
         gps_guidance(0)
         color_guidance(0)
+        apriltag_alignment()
         apriltag_guidance(0)
         collect_material(0)
         gps_guidance(1)
         color_guidance(1)
+        apriltag_alignment()
         apriltag_guidance(1)
         arm.place_object()
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
+        apriltag_alignment()
         apriltag_guidance(0)
         arm.place_object()
         
