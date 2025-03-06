@@ -557,7 +557,7 @@ class ArmController:
             self.move_smoothly(i, angle)
                  
     def search_position1(self):
-        self.move_smoothly(2, 90)
+        self.move_smoothly(2, 110)
         self.move_smoothly(1, 90)
         self.move_smoothly(0, 80)
         self.move_smoothly(1, 170)
@@ -578,66 +578,67 @@ class ArmController:
     def search_position2(self):
         self.move_smoothly(1, 110)
         self.move_smoothly(2, 120)
-        self.move_smoothly(3, 110)
-        self.move_smoothly(0, 60)
+        self.move_smoothly(3, 170)
+        self.move_smoothly(0, 50)
         
-    def search_and_grab(self, cam, target_id):
-        for angle in range(self.current_angles[3], 30, -2):
+    def search_and_grab(self, cam, tag_id):
+        miss_count = 0
+        for angle in range(self.current_angles[3], 40, -1):
             self.move_servo(3, angle)
             cam.read_tags(0)
-            
-            if cam.tag_detected[target_id]:
+            print(cam.tag_detected[tag_id])
+            if cam.tag_detected[tag_id]:
                 break
-
-        while True:
-            cam.read_tags(0)
-            if cam.tag_cx[target_id] < 110:
-                self.move_smoothly(0, self.current_angles[0] + 1)
-            elif cam.tag_cx[target_id] > 130:
-                self.move_smoothly(0, self.current_angles[0] - 1)
-            else:
-                break
-            
-        
-        catch = False    
-        while True:
-            cam.read_tags(0)
-            miss_count = 0
-            if  cam.tag_detected[target_id] and cam.tag_distance[target_id] < 4:
-                print(cam.tag_distance[target_id])
-                self.move_servo(3, self.current_angles[3]+10)
-                self.move_smoothly(4, 0)
-                catch = True
-                return True
-            
-                           
-            if cam.tag_detected[target_id]:
+                print(f"kenchi")
+                while True:
+                    cam.read_tags(0)
+                    if cam.tag_cx[tag_id] < 110:
+                        self.move_smoothly(0, self.current_angles[0] + 1)
+                        print(f"move left")
+                    elif cam.tag_cx[tag_id] > 130:
+                        self.move_smoothly(0, self.current_angles[0] - 1)
+                        print(f"move right")
+                    else:
+                        break
+                    catch = False    
+            while True:
+                cam.read_tags(0)
                 
-                if cam.tag_cy[target_id] > 180:
-                    self.move_servo(3, self.current_angles[3] - 1)
-                elif cam.tag_cy[target_id] < 140:
-                    self.move_servo(3, self.current_angles[3] + 1)
+                if  cam.tag_detected[tag_id] and cam.tag_distance[tag_id] < 4:
+                    print(cam.tag_distance[tag_id])
+                    self.move_servo(3, self.current_angles[3]+10)
+                    self.move_smoothly(4, 0)
+                    catch = True
+                    return True
+                
+                               
+                if cam.tag_detected[tag_id]:
+                    
+                    if cam.tag_cy[tag_id] > 180:
+                        self.move_servo(3, self.current_angles[3] - 1)
+                    elif cam.tag_cy[tag_id] < 140:
+                        self.move_servo(3, self.current_angles[3] + 1)
+                    else:
+                        self.move_smoothly(1, self.current_angles[1] - 1)
+                                        
                 else:
-                    self.move_smoothly(1, self.current_angles[1] - 1)
-                                   
-            
-            else:
-                miss_count += 1
-            
-            if miss_count > 50:
-                print("target out of range")
-                return False
-
-            time.sleep(0.2)
+                    miss_count += 1
                 
-    def angle_fit(self, target_id):
+                if miss_count > 50:
+                    print("target out of range")
+                    return False
+
+                time.sleep(0.2)
+                     
+    def angle_fit(self, tag_id):
         search_direction = 1
         while True:
-            result = self.search_and_grab(cam, target_id)
+            result = self.search_and_grab(cam, tag_id)
             if result:
                 print("catch")
                 return True
             else:
+                self.search_position1()
                 print("retry")
                 next_angle = self.current_angles[0] + (20 * search_direction)
                 if next_angle >= 180:
@@ -650,7 +651,6 @@ class ArmController:
                 self.move_servo(0, next_angle)
                 time.sleep(0.5)
                 self.search_position2()  # 再探索位置
-                
     
 # スタート判定
 def start():
