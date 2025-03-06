@@ -858,8 +858,7 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
-
-               def apriltag_alignment():
+def apriltag_alignment():
     motor = Motor()
     motor.enable_irq()
     motor.update_rpm(30, 30)
