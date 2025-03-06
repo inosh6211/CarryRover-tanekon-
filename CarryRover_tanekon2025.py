@@ -858,53 +858,64 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
-def apriltag_alignment():
+
+               def apriltag_alignment():
     motor = Motor()
     motor.enable_irq()
     motor.update_rpm(30, 30)
     
     while True:
         cam.read_tags(0)
-        # 補正距離
-        corrected_distance = 424.115 + (2.5032 * cam.tag_distance[2] - 1.1803)
-        ka = cam.tag_pitch[2]
-        sinx = math.sin(math.radians(ka))
-        #print("Corrected distance:", corrected_distance, "Pitch:", ka, "sin:", sinx)
+        detected_id = None
+        for i in range(10):  
+            if cam.tag_detected[i]:  
+                detected_id = i
+                break  
         
-        if 10 <= ka <= 180:
-            bno.reset()  
+        if detected_id is not None:  
+            corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
+            ka = cam.tag_pitch[detected_id]
+            
+            print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
+        else:
+            print("No tag detected.")
+            corrected_distance = None  
+            ka = None  
+    
+        time.sleep(0.1)
+        
+        if ka is not None and 10 <= ka <= 180:  
             motor.update_rpm(30, 30)
             motor.run(BACKWARD)
             time.sleep(2)
             motor.stop()
-            
+
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            # 右旋回による正対調整
             while True:
                 motor.update_rpm(10, 10)
                 motor.run(TURN_R)
                 bno.compute_euler()
                 current_yaw = (-bno.yaw + 360) % 360
                 diff = ((current_yaw - init_yaw + 180) % 360) - 180
+                print(diff)
                 if diff >= (90 - ka):
                     motor.stop()
                     break
                 time.sleep(0.01)
-            
-            go = corrected_distance * abs(sinx)
-            t_time = go / 212.0575  # 直進時間（秒）
-            start_time = time.ticks_ms()
-            motor.update_rpm(30, 30)
-            while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
-                motor.run(FORWARD)
-                time.sleep(0.01)
-            motor.stop()
-            
-            bno.reset()
+
+            if corrected_distance is not None:
+                go = corrected_distance * abs(math.sin(math.radians(ka)))
+                t_time = go / 212.0575  # 直進時間（秒）
+                start_time = time.ticks_ms()
+                motor.update_rpm(30, 30)
+                while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
+                    motor.run(FORWARD)
+                    time.sleep(0.01)
+                motor.stop()
+
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            # 左旋回 90°
             while True:
                 motor.update_rpm(10, 10)
                 motor.run(TURN_L)
@@ -915,10 +926,9 @@ def apriltag_alignment():
                     motor.stop()
                     break
                 time.sleep(0.01)
-            break  
-        
-        elif 180 <= ka <= 350:
-            bno.reset()
+            break  # ループ終了
+    
+        elif ka is not None and 180 <= ka <= 350:
             motor.update_rpm(30, 30)
             motor.run(BACKWARD)
             time.sleep(2)
@@ -933,21 +943,22 @@ def apriltag_alignment():
                 bno.compute_euler()
                 current_yaw = (-bno.yaw + 360) % 360
                 diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                if diff > (90 - (-(ka-360))):
+                if diff >= (90 - (360 - ka)):  
                     motor.stop()
                     break
                 time.sleep(0.01)
             
-            go = corrected_distance * abs(sinx)
-            t_time = go / 212.0575
-            start_time = time.ticks_ms()
-            motor.update_rpm(30, 30)
-            while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
-                motor.run(FORWARD)
-                time.sleep(0.01)
-            motor.stop()
+            if corrected_distance is not None:
+                sinx = math.sin(math.radians(ka))
+                go = corrected_distance * abs(sinx)
+                t_time = go / 212.0575
+                start_time = time.ticks_ms()
+                motor.update_rpm(30, 30)
+                while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
+                    motor.run(FORWARD)
+                    time.sleep(0.01)
+                motor.stop()
             
-            bno.reset()
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
             # 右旋回 90°
@@ -961,21 +972,23 @@ def apriltag_alignment():
                     motor.stop()
                     break
                 time.sleep(0.01)
+            
             break
-        
+
         time.sleep(0.01)
-    motor.disable_irq()
+        motor.disable_irq()
 
 
-# エイプリルタグによる誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
+# Apriltag認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     target_ids = station_tag[index]
     # コーンの半径（mm）
-    CONES_RADIUS = 100
+    CONES_RADIUS = 100 
+    
     motor.enable_irq()
     detected_id = None
-
+    
     while True:
         cam.read_tags(0)
         for tid in target_ids:
@@ -1015,7 +1028,7 @@ def apriltag_guidance(index):
             motor.run(FORWARD)
         time.sleep(0.05)
     
-    # タグID による追加動作
+    # タグID による動作
     if detected_id in [2, 6]:
         log.sd_write(f"Tag ID {detected_id}: In position. No further maneuver needed.")
     
