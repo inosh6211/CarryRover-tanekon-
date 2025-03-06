@@ -409,6 +409,8 @@ def april_tag_alignment():
         if 10 <= ka <= 180:
             # ●【ブランチ1】：kaが10～180°の場合（例：右側に傾いている場合）
             # ①後退：2秒バック走行してロボットの位置を調整
+            #bno.reset必要？
+            bno.reset
             motor.update_rpm(30, 30)
             motor.run(BACKWARD)
             time.sleep(2)
@@ -441,6 +443,7 @@ def april_tag_alignment():
             motor.stop()
             
             # ④最終旋回：正対状態にするため左回り90°旋回
+            bno.reset
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
             while True:
@@ -455,8 +458,10 @@ def april_tag_alignment():
                 time.sleep(0.01)
         
         elif 180 <= ka <= 350:
+            
             # ●【ブランチ2】：kaが180～350°の場合（例：左側に傾いている場合）
             # ①後退：2秒バック走行してロボットの位置を調整
+            bno.resset
             motor.update_rpm(30, 30)
             motor.run(BACKWARD)
             time.sleep(2)
@@ -488,6 +493,7 @@ def april_tag_alignment():
             motor.stop()
             
             # ④最終旋回：正対状態にするため右回り90°旋回
+            bno.reset
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
             while True:
