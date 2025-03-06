@@ -121,11 +121,12 @@ class Logger:
         if self.p.is_connected():
             self.p.send(message)
             
-        try:
-            with open(self.file_name, "a") as f:
-                f.write(message + "\n")
-        except OSError as e:
-            self.ble_print(f"SD card not detected: {e}")
+        if self.sd_state:
+            try:
+                with open(self.file_name, "a") as f:
+                    f.write(message + "\n")
+            except OSError as e:
+                self.ble_print(f"SD card not detected: {e}")
             
         t1 = time.ticks_ms()
         dt = time.ticks_diff(t1, t0)
