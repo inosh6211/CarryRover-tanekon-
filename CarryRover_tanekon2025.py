@@ -1087,7 +1087,7 @@ def collect_material(index):
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
     bno = BNO055Handler(I2C0)
-    bme = BME280(I2C0)
+    bme = BME280(i2c=I2C0)
     motor = Motor()
     gps = GPS(UART0)
     cam = CameraReceiver(UART1)
