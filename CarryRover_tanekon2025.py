@@ -289,7 +289,6 @@ class Motor:
     def soutai_turn(self, angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
         while True:                    #angleは右回り正で０から360
             self.update_rpm(10,10)
-            bno.reset()
             bno.compute_euler()
             current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
             diff = ((current_yaw - init_yaw + 360) % 360)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
