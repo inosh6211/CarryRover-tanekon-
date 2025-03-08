@@ -48,7 +48,7 @@ KP_YAW      = 0.1
 KP_CAMERA = 0.05
 
 #　モーターのrpmを現地で測定
-rpm = 10
+rpm = 30
 
 
 class Logger:
@@ -517,39 +517,37 @@ def stop():
     BIN2.off()
     
 def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
-    while True:                    #angleは右回り正で０から360
-        current_yaw = (-bno.yaw + 360) % 360
-        diff = ((current_yaw - init_yaw + 360) % 360)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
-        if ((angle - diff + 360) % 360) <= 180:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
-            while True:
-                #print(diff)
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-                diff = ((current_yaw - init_yaw + 360) % 360)
-                turn_right(20)
-                if angle-diff < -1:
-                    turn_right(20)
-                if abs(angle-diff) <= 1:
-                    stop()
-                    break
-                time.sleep(0.01)
-        elif ((angle - diff + 360) % 360) > 180:
-            while True:
-                print(diff)
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-                diff = ((current_yaw - init_yaw + 360) % 360)
-                turn_right(20)
-                if angle-diff > 1:
-                    turn_right(20)
-                if abs(angle-diff) <= 1:
-                    stop()
-                    break
-                time.sleep(0.01)
-        if abs(angle-diff) <= 1:#358to2とかで359とかでとまったときにdiff >= 90認定されないように
-            print("stop")
-            break
-        time.sleep(0.01) 
+    init_yaw = (-init_yaw + 360) % 360 #angleは右回り正で０から360
+    current_yaw = (-bno.yaw + 360) % 360
+    diff = ((current_yaw - init_yaw + 360) % 360)
+    print(((angle - diff + 180) % 360) - 180)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
+    if ((angle - diff + 180) % 360) - 180 > 0:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
+        while True:
+            #print(diff)
+            bno.compute_euler()
+            current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
+            diff = ((current_yaw - init_yaw + 360) % 360)
+            turn_right(20)
+            #if angle-diff < -1:
+                #turn_left(20)
+            print(((angle - diff + 180) % 360) - 180)
+            if ((angle - diff + 180) % 360) - 180 <= 0:
+                stop()
+                break
+            time.sleep(0.01)
+    elif ((angle - diff + 180) % 360) - 180 < 0:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
+        while True:
+            #print(diff)
+            bno.compute_euler()
+            current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
+            diff = ((current_yaw - init_yaw + 360) % 360)
+            turn_left(20)
+            #if angle-diff < -1:
+                #turn_left(20)
+            if ((angle - diff + 180) % 360) + 180 >= 0:
+                stop()
+                break
+            time.sleep(0.01)
 
 
 
@@ -771,8 +769,9 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
+                
 # エイプリルタグに正対するプログラム
-def apriltag_alignment(index):       
+def apriltag_alignment(index): 
     while True:
         cam.read_tags(index)
         detected_id = None
@@ -800,63 +799,70 @@ def apriltag_alignment(index):
         
         time.sleep(0.5)
 
-        if ka is not None and 10 <= ka <= 180:
-            #20cmバックさせる
-            back_distance =500
+        if ka is not None and 20 <= ka <= 180:
+            #10cmバックさせる
+            back_distance =100
             t_1 = back_distance / (135 * math.pi * (rpm /60))
             straight_ward("b", t_1)
-            print("a")
+            #print("a")
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
             soutai_turn(90 - ka , init_yaw)
-            print("b")
+            #print("b")
             
             if corrected_distance is not None:
                 go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
                 t_2 = go_distance / (135 * math.pi * (rpm /60))
                 straight_ward("f", t_2)
                 soutai_turn(360 - ka, init_yaw)
-                print("c")
+                stop()
+                break
+                #print("c")
                 
                 
             
-        elif ka is not None and 180 <= ka <= 350:
-            #20cmバックさせる
-            back_distance = 500
+        elif ka is not None and 180 <= ka <= 340:
+            #10cmバックさせる
+            back_distance = 100
             t_1 = back_distance / (135 * math.pi * (rpm /60))
             straight_ward("b", t_1)
-            print("d")
+            #print("d")
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            soutai_turn( ka-270 , init_yaw)
-            print("e")
+            soutai_turn( 360-(90-(360-ka)) , init_yaw)
+            #print("e")
             
             if corrected_distance is not None:
                 go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
                 t_2 = go_distance / (135 * math.pi * (rpm /60))
                 straight_ward("f", t_2)
-                soutai_turn(ka, init_yaw)
-                print("f")
+                soutai_turn( 360-ka , init_yaw)
+                stop()
+                #print("f")
+                break
                 
-# エイプリルタグ認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
+            elif ka is not None and 0 <= ka <= 20 or 340 <= ka <= 360:
+                break
+            
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     target_ids = station_tag[index]
     # コーンの半径（mm）
     CONES_RADIUS = 300
-    detected_id = None           
-            
-    # 直進：タグまでの距離が20cmになるまで前進   
+    detected_id = None
+    
+    # 直進：タグまでの距離が20cmになるまで前進
     while True:
         cam.read_tags(index)
+        """
         if not cam.tag_detected[detected_id]:
             turn_right(20)
             time.sleep(0.5)
             continue
-        
-        if cam.tag_distance[detected_id] <= 20:
+        """
+        if cam.tag_distance[detected_id] <= 200:
             stop()
         else:
             straight_ward("f", 0.5)
@@ -969,5 +975,8 @@ if __name__ == "__main__":
     finally:
         stop()
         time.sleep(1)
+
+
+
 
 
