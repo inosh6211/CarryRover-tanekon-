@@ -778,27 +778,20 @@ def gps_guidance(index):
 
 # 色認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def color_guidance(index):
-    motor.enable_irq()
         
     while True:
         cam.read_color()
         
         if cam.color_pixels[index] == 0:
-            motor.update_rpm(10, 10)
-            motor.run(TURN_R)  # 旋回 
+            turn_right(10, 10)# 旋回 
         else:
             cx = cam.color_cx[index]
             rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
             rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30, 100))
-            motor.update_rpm(rpm_a, rpm_b)
-            motor.run(FORWARD)
+            forward(rpm_a, rpm_b)
                             
-        if cam.color_pixels[index] > 2000:
-            motor.update_rpm(30,30)
-            motor.run(FORWARD)
-            time.sleep(0.5)
-            motor.stop()
-            motor.disable_irq()
+        if cam.color_pixels[index] > 10000:
+            stop()
             break
         
         time.sleep(0.1)
