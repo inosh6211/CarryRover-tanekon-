@@ -121,12 +121,11 @@ class Logger:
         if self.p.is_connected():
             self.p.send(message)
             
-        if self.sd_state:
-            try:
-                with open(self.file_name, "a") as f:
-                    f.write(message + "\n")
-            except OSError as e:
-                self.ble_print(f"SD card not detected: {e}")
+        try:
+            with open(self.file_name, "a") as f:
+                f.write(message + "\n")
+        except OSError as e:
+            self.ble_print(f"SD card not detected: {e}")
             
         t1 = time.ticks_ms()
         dt = time.ticks_diff(t1, t0)
@@ -155,11 +154,11 @@ class BNO055Handler:
             sys, gyro, accel, mag = self.bno055.cal_status()
             
             if gyro == 3 and mag == 3:
-                log.ble_print("BNO055 calibration completed")
+                print("BNO055 キャリブレーション完了")
                 break
             
             else:
-                log.ble_print(f"calibration gyro:{gyro}, mag:{mag}")
+                print(f"キャリブレーション gyro:{gyro}, mag:{mag}")
                 
             time.sleep(1)
         
@@ -196,225 +195,130 @@ class BNO055Handler:
     
     def get_accel(self):
         self.accel_x, self.accel_y, self.accel_z = self.bno055.accel()
-        
-class Motor:
-    def __init__(self):
-        self.AIN1 = AIN1
-        self.AIN2 = AIN2
-        self.PWMA = PWMA
-        self.BIN1 = BIN1
-        self.BIN2 = BIN2
-        self.PWMB = PWMB
-        self.STBY = STBY
-        self.OUTA_A = OUTA_A
-        self.OUTB_A = OUTB_A
-        self.OUTA_B = OUTA_B
-        self.OUTB_B = OUTB_B
 
-        # 制御用変数
-        self.rate_a = 0
-        self.rate_b = 0
-        self.target_rpm_a = 0
-        self.target_rpm_b = 0
-        self.pulse_count_a = 0
-        self.pulse_count_b = 0
-        self.direction_a = 0
-        self.direction_b = 0
-        self.start_time = time.ticks_ms()
-        self.state = 0
-        
-        self.timer = Timer()  # タイマーオブジェクトを生成
-        
+#motor
+def forward(rate_a, rate_b):
+    rate_a = max(0, min(rate_a, 100))
+    rate_b = max(0, min(rate_b, 100))
 
-    def pulse_counter_a(self, pin):
-        if self.OUTA_A.value() == self.OUTB_A.value():
-            self.direction_a = 1
-        else:
-            self.direction_a = -1
-        self.pulse_count_a += self.direction_a
+    AIN1.off()
+    AIN2.on()
+    PWMA.duty_u16(int(65535 * rate_a / 100))
+    BIN1.on()
+    BIN2.off()
+    PWMB.duty_u16(int(65535 * rate_b / 100))
+    
+def backward(rate_a, rate_b):
+    rate_a = max(0, min(rate_a, 100))
+    rate_b = max(0, min(rate_b, 100))
 
-    def pulse_counter_b(self, pin):
-        if self.OUTA_B.value() == self.OUTB_B.value():
-            self.direction_b = 1
-        else:
-            self.direction_b = -1
-        self.pulse_count_b += self.direction_b
+    AIN1.on()
+    AIN2.off()
+    PWMA.duty_u16(int(65535 * rate_a / 100))
+    BIN1.off()
+    BIN2.on()
+    PWMB.duty_u16(int(65535 * rate_b / 100))
 
-    def run(self, state):
-        if self.state != state:
-            self.stop()
-            self.state = state
+def turn_right(rate):
+    rate = max(0, min(rate, 100))
 
-        if self.state == FORWARD:
-            self.AIN1.off()
-            self.AIN2.on()
-            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-            self.BIN1.on()
-            self.BIN2.off()
-            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+    AIN1.on()
+    AIN2.off()
+    PWMA.duty_u16(int(65535 * rate / 100))
+    BIN1.on()
+    BIN2.off()
+    PWMB.duty_u16(int(65535 * rate / 100))
+    
+def turn_left(rate):
+    rate = max(0, min(rate, 100))
 
-        elif self.state == TURN_R:
-            self.AIN1.on()
-            self.AIN2.off()
-            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-            self.BIN1.on()
-            self.BIN2.off()
-            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+    AIN1.off()
+    AIN2.on()
+    PWMA.duty_u16(int(65535 * rate / 100))
+    BIN1.off()
+    BIN2.on()
+    PWMB.duty_u16(int(65535 * rate / 100))
 
-        elif self.state == TURN_L:
-            self.AIN1.off()
-            self.AIN2.on()
-            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-            self.BIN1.off()
-            self.BIN2.on()
-            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
+# 停止
+def stop():
+    AIN1.off()
+    AIN2.off()
+    BIN1.off()
+    BIN2.off()
+    
+def soutai_turn(angle, init_yaw):　#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
+    while True:  #angleは右回り正で０から360
+        current_yaw = (-bno.yaw + 360) % 360
+        diff = ((current_yaw - init_yaw + 360) % 360)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
+        if ((angle - diff + 360) % 360) <= 180:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
+            while True:
+                #print(diff)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
+                diff = ((current_yaw - init_yaw + 360) % 360)
+                turn_right(70)
+                if angle-diff < -1:
+                    turn_right(70)
+                if abs(angle-diff) <= 1:
+                    stop()
+                    break
+                time.sleep(0.01)
+        elif ((angle - diff + 360) % 360) > 180:
+            while True:
+                print(diff)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
+                diff = ((current_yaw - init_yaw + 360) % 360)
+                turn_right(70)
+                if angle-diff > 1:
+                    turn_right(70)
+                if abs(angle-diff) <= 1:
+                    stop()
+                    break
+                time.sleep(0.01)
+        if abs(angle-diff) <= 1:#358to2とかで359とかでとまったときにdiff >= 90認定されないように
+            print("stop")
+            break
+        time.sleep(0.01) 
 
-        elif self.state == BACKWARD:
-            self.AIN1.on()
-            self.AIN2.off()
-            self.PWMA.duty_u16(int(65535 * self.rate_a / 100))
-            self.BIN1.off()
-            self.BIN2.on()
-            self.PWMB.duty_u16(int(65535 * self.rate_b / 100))
 
-    def stop(self):
-        self.AIN1.off()
-        self.AIN2.off()
-        self.BIN1.off()
-        self.BIN2.off()
-        self.rate_a = 20
-        self.rate_b = 20
-        self.state = 0
-        
-    def soutai_turn(self, angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
-        while True:                    #angleは右回り正で０から360
-            self.update_rpm(10,10)
+
+def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、、現地で求めたrpmより、ｔを求めてから使う
+    start = time.ticks_ms()
+    rpm = 70 　　#　現地で調査して代入
+    bno.compute_euler()
+    init_yaw = (-bno.yaw + 360) % 360
+                
+    if ward == "f":
+         while True:
             bno.compute_euler()
-            current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-            diff = ((current_yaw - init_yaw + 360) % 360)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
-            if ((angle - diff + 360) % 360) <= 180:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
-                while True:
-                    print(diff)
-                    bno.computer_euler()
-                    current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-                    diff = ((current_yaw - init_yaw + 360) % 360)
-                    motor.run(TURN_R)
-                    if angle-diff < -1:
-                        motor.run(TURN_R)
-                    if abs(angle-diff) <= 1:
-                        self.stop()
-                        break
-                    time.sleep(0.01)
-            elif ((angle - diff + 360) % 360) > 180:
-                while True:
-                    print(diff)
-                    bno.compute_euler()
-                    current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-                    diff = ((current_yaw - init_yaw + 360) % 360)
-                    motor.run(TURN_L)
-                    if angle-diff > 1:
-                        motor.run(TURN_L)
-                    if abs(angle-diff) <= 1:
-                        self.stop()
-                        break
-                    time.sleep(0.01)
-            if abs(angle-diff) <= 1:#358to2とかで359とかでとまったときにdiff >= 90認定されないように
-                print("stop")
+            current_yaw = (-bno.yaw + 360) % 360
+            diff = ((current_yaw - init_yaw + 540) % 360) - 180
+            rate_a = -KP_YAW * diff + rpm
+            rate_b = KP_YAW * diff + rpm
+            forward(rate_a, rate_b)
+            print(f"L{diff}")
+            now = time.ticks_ms()
+            if (now - start) / 1000 >= t:
+                stop()
                 break
             time.sleep(0.01)
-            
-     def straight_ward(self, ward, distance, rpm):
-        start=time.ticks_ms()
-        t = distance / (135 * math.pi * (rpm /60))
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
                 
-        if ward == f
-            while True:
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 540) % 360) - 180
-                rate_a=-KP_YAW*diff+rpm
-                rate_b=KP_YAW*diff+rpm
-                self.update_rpm(rate_a, rate_b)
-                self.run(FORWARD)
-                print(f"L{diff}")
-                now = time.ticks_ms()
-                if (time.ticks_ms() - start) / 1000 >= t:
-                    motor.stop()
-                    break
-                time.sleep(0.01)
-                
-        elif ward == b
-            while True:
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 540) % 360) - 180
-                rate_a=KP_YAW*diff+rpm
-                rate_b=-KP_YAW*diff+rpm
-                self.update_rpm(rate_a, rate_b)
-                self.run(BACKWARD)
-                print(f"L{diff}")
-                now = time.ticks_ms()
-                if (time.ticks_ms() - start) / 1000 >= t:
-                    motor.stop()
-                    break
-                time.sleep(0.01)
-    
-
-    def compute_rpm(self, pulse_count, interval):
-        if interval <= 0:
-            return 0
-        rpm = abs((pulse_count * 60) / (PPR * GEAR_RATIO * interval))
-        return rpm
-
-    def update_speed(self, timer):        
-        if self.state == 0:
-            self.start_time = time.ticks_ms()
-            self.pulse_count_a = 0
-            self.pulse_count_b = 0
-        else:
+    elif ward == "b":
+        while True:
+            bno.compute_euler()
+            current_yaw = (-bno.yaw + 360) % 360
+            diff = ((current_yaw - init_yaw + 540) % 360) - 180
+            rate_a = KP_YAW * diff + rpm
+            rate_b = -KP_YAW * diff + rpm
+            backward(rate_a, rate_b)
+            print(f"L{diff}")
             now = time.ticks_ms()
-            interval = time.ticks_diff(now, self.start_time) / 1000
-            rpm_a = self.compute_rpm(self.pulse_count_a, interval)
-            rpm_b = self.compute_rpm(self.pulse_count_b, interval)
-            self.rate_a += KP_RPM * (self.target_rpm_a - rpm_a)
-            self.rate_b += KP_RPM * (self.target_rpm_b - rpm_b)
-            self.rate_a = min(max(self.rate_a, 0), 100)
-            self.rate_b = min(max(self.rate_b, 0), 100)
+            if (now - start) / 1000 >= t:
+                stop()
+                break
+            time.sleep(0.01)
 
-            self.run(self.state)
-
-            self.start_time = now
-            self.pulse_count_a = 0
-            self.pulse_count_b = 0
-
-    def update_rpm(self, target_rpm_a, target_rpm_b):
-        self.target_rpm_a = target_rpm_a
-        self.target_rpm_b = target_rpm_b
-
-    def adjust_start_time(self, dt):
-        self.start_time = time.ticks_add(self.start_time, dt)
-        
-    def inverted(self):
-        bno.get_accel()
-        pitch = bno.pitch
-        accel_z = bno.accel_z
-        if accel_z < 0 or pitch < -20:
-            self.update_rpm(1000, 1000)
-            self.run(FORWARD)
-            time.sleep(0.5)
-            self.stop()
-
-    def enable_irq(self):
-        self.OUTA_A.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_a)
-        self.OUTA_B.irq(trigger=Pin.IRQ_RISING, handler=self.pulse_counter_b)
-        self.timer.init(mode=Timer.PERIODIC, freq=FREQ, callback=self.update_speed)
-
-    def disable_irq(self):
-        self.OUTA_A.irq(handler=None)
-        self.OUTA_B.irq(handler=None)
-        self.timer.deinit()
 
 
 
@@ -495,6 +399,7 @@ class CameraReceiver:
         time.sleep(2)
         
         # UnitVとの接続確認
+        """
         while True:
             self.uart.write("1\n")
             
@@ -509,6 +414,7 @@ class CameraReceiver:
                 break
             
             time.sleep(0.1)
+            """
 
     def read_camera(self):
         message = ""
@@ -551,8 +457,10 @@ class CameraReceiver:
         self.tag_pitch = [0] * 10
         
         self.uart.write(f"T{mode}\n")
+        
+        time.sleep(0.1)  # カメラ側の応答時間を確保
         data = self.read_camera()
-
+        
         if data[0] == "T":
             if len(data) > 1:
                 if (len(data) - 1) % 6 == 0:
@@ -806,7 +714,7 @@ def gps_guidance(index):
     goal_lat, goal_lon = STATION[index]
     motor.enable_irq()
     
-    motor.straight_forward_t(1000, 30)
+    motor.straight_forward_t(1, 30)
     
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
@@ -820,6 +728,8 @@ def gps_guidance(index):
         bno.compute_euler()
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
         log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
+        
+        motor.run(TURN_R)
         
         if azimuth_error > 20:
             motor.update_rpm(10, 10)
@@ -893,138 +803,82 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
-def apriltag_alignment():
+def apriltag_alignment(index):
     motor = Motor()
     motor.enable_irq()
     motor.update_rpm(30, 30)
     
     while True:
-        cam.read_tags(0)
+        cam.read_tags(index)
         detected_id = None
         for i in range(10):  
             if cam.tag_detected[i]:  
                 detected_id = i
+                break
+        
+        while True:
+            cam.read_tags(index)
+            detected_id = None
+            # 0～9 のタグIDをすべてチェック
+            for i in range(10):  
+                if cam.tag_detected[i]:
+                    detected_id = i
+                    break
+                      # 最初に見つかったタグを使用
+            
+            if detected_id is not None:  
+                corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
+                ka = cam.tag_pitch[detected_id]
+                print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
+                # タグが検出されたのでループ終了（以降、正対などの処理に進む）
                 break  
-        
-        if detected_id is not None:  
-            corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
-            ka = cam.tag_pitch[detected_id]
-            
-            print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
-        else:
-            print("No tag detected.")
-            corrected_distance = None  
-            ka = None  
-    
-        time.sleep(0.1)
-        
-        if ka is not None and 10 <= ka <= 180:  
-            motor.update_rpm(30, 30)
-            motor.run(BACKWARD)
-            time.sleep(2)
-            motor.stop()
-
-            bno.compute_euler()
-            init_yaw = (-bno.yaw + 360) % 360
-            while True:
-                motor.update_rpm(10, 10)
+            else:
+                print("No tag detected.")
+                # タグが見つからなければ、右旋回して再探索
+                motor.update_rpm(20, 20)
                 motor.run(TURN_R)
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                print(diff)
-                if diff >= (90 - ka):
-                    motor.stop()
-                    break
-                time.sleep(0.01)
+                corrected_distance = None  
+                ka = None
+            
+            time.sleep(0.1)
 
-            if corrected_distance is not None:
-                go = corrected_distance * abs(math.sin(math.radians(ka)))
-                t_time = go / 212.0575  # 直進時間（秒）
-                start_time = time.ticks_ms()
-                motor.update_rpm(30, 30)
-                while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
-                    motor.run(FORWARD)
-                    time.sleep(0.01)
-                motor.stop()
-
+        if ka is not None and 10 <= ka <= 180:
+            motor.straight_ward("b", 1000, 30)
+            
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            while True:
-                motor.update_rpm(10, 10)
-                motor.run(TURN_L)
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                if diff >= 90:
-                    motor.stop()
-                    break
-                time.sleep(0.01)
-            break  # ループ終了
-    
+            motor.soutai_turn(ka - 90 , init_yaw)
+            
+            if corrected_distance is not None:
+                go_distance = (corrected_distance + 1000 )* abs(math.sin(math.radians(ka)))
+                motor.straight_ward("f", go_distance, 30)
+                motor.soutai_turn(360 - ka, init_yaw)
+                
+            
         elif ka is not None and 180 <= ka <= 350:
-            motor.update_rpm(30, 30)
-            motor.run(BACKWARD)
-            time.sleep(2)
-            motor.stop()
+            motor.straight_ward("b", 1000, 30)
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            # 左旋回による正対調整
-            while True:
-                motor.update_rpm(10, 10)
-                motor.run(TURN_L)
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                if diff >= (90 - (360 - ka)):  
-                    motor.stop()
-                    break
-                time.sleep(0.01)
+            motor.soutai_turn( 90 - ka , init_yaw)
             
             if corrected_distance is not None:
-                sinx = math.sin(math.radians(ka))
-                go = corrected_distance * abs(sinx)
-                t_time = go / 212.0575
-                start_time = time.ticks_ms()
-                motor.update_rpm(30, 30)
-                while time.ticks_diff(time.ticks_ms(), start_time) < t_time * 1000:
-                    motor.run(FORWARD)
-                    time.sleep(0.01)
-                motor.stop()
-            
-            bno.compute_euler()
-            init_yaw = (-bno.yaw + 360) % 360
-            # 右旋回 90°
-            while True:
-                motor.update_rpm(10, 10)
-                motor.run(TURN_R)
-                bno.compute_euler()
-                current_yaw = (-bno.yaw + 360) % 360
-                diff = ((current_yaw - init_yaw + 180) % 360) - 180
-                if diff >= 90:
-                    motor.stop()
-                    break
-                time.sleep(0.01)
-            
-            break
+                go_distance = (corrected_distance + 100 )* abs(math.sin(math.radians(ka)))
+                motor.straight_ward("f", go_distance, 30)
+                motor.soutai_turn(ka, init_yaw)
+                
 
-        time.sleep(0.01)
-        motor.disable_irq()
-
-
-# Apriltag認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     target_ids = station_tag[index]
     # コーンの半径（mm）
-    CONES_RADIUS = 100 
+    CONES_RADIUS = 300
     
     motor.enable_irq()
     detected_id = None
     
     while True:
-        cam.read_tags(0)
+        cam.read_tags(index)
         for tid in target_ids:
             if cam.tag_detected[tid]:
                 detected_id = tid
@@ -1038,58 +892,53 @@ def apriltag_guidance(index):
             time.sleep(0.5)
             motor.stop()
             time.sleep(0.1)
-    
-    # 直進：タグまでの距離が20cmになるまで前進
+            
+    # 直進：タグまでの距離が20cmになるまで前進   
     while True:
         cam.read_tags(0)
         if not cam.tag_detected[detected_id]:
-            log.sd_write("Tag lost. Initiating recovery spin.")
             motor.update_rpm(10, 10)
             motor.run(TURN_R)
             time.sleep(0.5)
             motor.stop()
             continue
+        
         if cam.tag_distance[detected_id] <= 20:
             motor.stop()
-            
-            if detected_id in [2, 6]:
-                log.sd_write(f"Goal achieved: Directly in front of tag ID {detected_id}.")
-                break
-            else:
-                break
         else:
             motor.update_rpm(30, 30)
             motor.run(FORWARD)
+            
         time.sleep(0.05)
-    
+        
     # タグID による動作
     if detected_id in [2, 6]:
-        log.sd_write(f"Tag ID {detected_id}: In position. No further maneuver needed.")
+        print(f"Tag ID {detected_id}: In position. No further maneuver needed.")
     
     elif detected_id in [4, 8]:
         log.sd_write(f"Tag ID {detected_id}: Executing maneuver: right 90°, forward (r+20), left 90°, forward (r+20), left 90°")
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
         motor.soutai_turn(90, init_yaw)  # 右90°旋回
-        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        motor.straight_ward("f", CONES_RADIUS + 20, 30)
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
-        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        motor.soutai_turn(270, init_yaw)  # 左90°旋回
+        motor.straight_ward("f", CONES_RADIUS + 20, 30)
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+        motor.soutai_turn(270, init_yaw)  # 左90°旋回
         
     elif detected_id in [3, 7]:
         log.sd_write(f"Tag ID {detected_id}: Executing maneuver: left 90°, forward (r+20), right 90°, forward (r+20), right 90°")
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
-        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        motor.soutai_turn(270, init_yaw)  # 左90°旋回
+        motor.straight_ward("f", CONES_RADIUS + 20, 30)
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
         motor.soutai_turn(90, init_yaw)   # 右90°旋回
-        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        motor.straight_ward("f", CONES_RADIUS + 20, 30)
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
         motor.soutai_turn(90, init_yaw)   # 右90°旋回
@@ -1099,16 +948,21 @@ def apriltag_guidance(index):
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
         motor.soutai_turn(90, init_yaw)   # 右90°旋回
-        motor.straight_forward_t(2 * CONES_RADIUS + 20, 30)
+        motor.straight_ward("f", 2 * CONES_RADIUS + 20, 30)
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
-        motor.straight_forward_t(CONES_RADIUS + 20, 30)
+        motor.soutai_turn(270, init_yaw)  # 左90°旋回
+        motor.straight_ward("f", CONES_RADIUS + 20, 30)
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(-90, init_yaw)  # 左90°旋回
+        motor.soutai_turn(270, init_yaw)  # 左90°旋回
     
     motor.disable_irq()
+            
+            
+    
+    
+    
    
 # 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
 def collect_material(index):
@@ -1124,11 +978,12 @@ def collect_material(index):
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
     bno = BNO055Handler(I2C0)
-    bme = BME280(i2c=I2C0)
+    bme = BME280(I2C0)
     motor = Motor()
     gps = GPS(UART0)
     cam = CameraReceiver(UART1)
     arm = ArmController(I2C1)
+    
     
     log.sd_write("Setup completed")
     
@@ -1141,7 +996,7 @@ if __name__ == "__main__":
         fusing()
         gps_guidance(0)
         color_guidance(0)
-        apriltag_alignment()
+        apriltag_alignment(0)
         apriltag_guidance(0)
         collect_material(0)
         gps_guidance(1)
@@ -1156,11 +1011,10 @@ if __name__ == "__main__":
         apriltag_guidance(0)
         arm.place_object()
         
+        
         log.sd_write("Mission completed!")
         
     finally:
         motor.stop()
         motor.disable_irq()
         time.sleep(1)
-
-
