@@ -111,7 +111,7 @@ while True:
 
         # AprilTag検出(通常時)
         elif command == "T0":
-            tags = img.find_apriltags(roi=ROI[0], families=TAG16H5)
+            tags = img.find_apriltags(roi=ROI[0], families=image.TAG16H5)
             tag_data = ["T"]
 
             for tag in tags:
@@ -130,7 +130,7 @@ while True:
 
         # AprilTag検出(物資保持時)
         elif command == "T1":
-            tags = img.find_apriltags(roi=ROI[1], families=TAG16H5)
+            tags = img.find_apriltags(roi=ROI[1], families=image.TAG16H5)
             tag_data = ["T"]
 
             for tag in tags:
