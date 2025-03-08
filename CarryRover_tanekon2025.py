@@ -47,9 +47,6 @@ FILE_NAME = "CarryRover"  # ログを保存するファイル名
 KP_YAW      = 0.1
 KP_CAMERA = 0.05
 
-#　モーターのrpmを現地で測定
-rpm = 50
-
 
 class Logger:
     def __init__(self, spi, cs):
@@ -261,7 +258,7 @@ class CameraReceiver:
             message = self.uart.readline().decode('utf-8').strip()
             
             if message == "1":
-                print("Unitv connected")
+                print("UnitV connected")
                 break
             
             time.sleep(0.1)
@@ -275,10 +272,6 @@ class CameraReceiver:
                 if char == "\n":
                     break
                 message += char
-                
-                time.sleep(0.01)
-        
-        print(message)
         
         return message.split(',')
     
@@ -346,10 +339,6 @@ class ArmController:
     def __init__(self, i2c):
         self.servos = Servos(i2c)
         self.servos.pca9685.freq(50)
-        self.L1 = 80
-        self.L2 = 120
-        self.L3 = 100
-        self.Z = 0
         self.init_angles = [180, 170, 0, 0, 0]
         self.current_angles = self.init_angles[:]
         
@@ -379,27 +368,7 @@ class ArmController:
         self.move_smoothly(1, 170)
         self.move_smoothly(3, 110)
         self.move_smoothly(4, 80)
-
-    def detect_object(self, cam, tag_id):
-        while True:
-            cam.read_tag(0)
-            if cam.tag_detected[tag_id]:
-                CY = cam.tag_cy[tag_id]
-                if CY > 180:
-                    self.move_smoothly(3, self.current_angles[3] - 1)
-                elif CY < 140:
-                    self.move_smoothly(3, self.current_angles[3] + 1)
-                else:
-                    break
-        time.sleep(0.1)
-
-        while True:
-            cam.read_tags(0)
-            if cam.tag_detected[tag_id]:
-                self.Z = 10*cam.tag_distance[tag_id]
-                print(f"distance = {self.Z}")
-                break
-                        
+        
     def moving_position(self):
         self.move_smoothly(1, 170)
         self.move_smoothly(2, 90)
@@ -413,106 +382,80 @@ class ArmController:
         
     def search_position2(self):
         self.move_smoothly(1, 110)
-        self.move_smoothly(2, 100)
-        self.move_smoothly(3, 110)
-        self.move_smoothly(0, 60)
-
-    def search_for_target(self, cam, tag_id):
-        for angle in range(self.current_angles[3], 0, -1):
-            self.move_servo(3, angle)
-            cam.read_tags(0)
-            if cam.tag_detected[tag_id]:
-                break
-                
-        while True:
-            cam.read_tags(0)
-            if cam.tag_cx[tag_id] < 110:
-                self.move_smoothly(0, self.current_angles[0] + 1)
-            elif cam.tag_cx[tag_id] > 130:
-                self.move_smoothly(0, self.current_angles[0] - 1)
-            else:
-                break      
-    
-    def inverse_kinematics(self, cam, tag_id):       
-        x_t = -self.L1 * math.cos(math.radians(170 - self.current_angles[1])) + \
-              self.L2 * math.cos(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) + \
-              (self.L3 + self.Z - 3) * math.cos(math.radians(180 - (self.current_angles[2] - (170 - self.current_angles[1])) - self.current_angles[3]))
-        y_t = self.L1 * math.sin(math.radians(170 - self.current_angles[1])) + \
-              self.L2 * math.sin(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) - \
-              (self.L3 + self.Z - 3) * math.sin(math.radians(180 - (self.current_angles[2] - (170 - self.current_angles[1])) - self.current_angles[3]))
-        d = math.sqrt(x_t**2 + y_t**2)
-        L_12 = math.sqrt(self.L1**2 + self.L2**2 - 2 * self.L1 * self.L2 * math.cos(math.radians(self.current_angles[2])))
-        theta3_prime = math.degrees(math.acos((self.L2**2 + L_12**2 - self.L1**2) / (2 * self.L2 * L_12)))
-        theta5 = math.degrees(math.acos((L_12**2 + self.L3**2 - d**2) / (2 * L_12 * self.L3)))
-        target_theta_3 = theta5 + theta3_prime
-         
-        self.move_smoothly(3, int(target_theta_3))
-        time.sleep(1)
-        
-        x_b = -self.L1 * math.cos(math.radians(170 - self.current_angles[1])) + \
-              self.L2 * math.cos(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) + \
-              self.L3 * math.cos(math.radians((target_theta_3 + (self.current_angles[2] - (170 - self.current_angles[1]))) - 180))
-        
-        y_b = self.L1 * math.sin(math.radians(170 - self.current_angles[1])) + \
-              self.L2 * math.sin(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) + \
-              self.L3 * math.sin(math.radians((target_theta_3 + (self.current_angles[2] - (170 - self.current_angles[1]))) - 180))
-        
-        phi = int(math.degrees(math.acos((2*d**2 - ((x_t - x_b)**2 + (y_t - y_b)**2)) / (2*d**2))))
-        
-        self.move_smoothly(1, self.current_angles[1] - phi+5)
-        self.move_smoothly(4, 0)
+        self.move_smoothly(2, 120)
+        self.move_smoothly(3, 170)
+        self.move_smoothly(0, 50)
         
     def search_and_grab(self, cam, tag_id):
         miss_count = 0
         for angle in range(self.current_angles[3], 40, -1):
             self.move_servo(3, angle)
             cam.read_tags(0)
+            print(cam.tag_detected[tag_id])
             if cam.tag_detected[tag_id]:
                 break
-                
+                print(f"kenchi")
+                while True:
+                    cam.read_tags(0)
+                    if cam.tag_cx[tag_id] < 110:
+                        self.move_smoothly(0, self.current_angles[0] + 1)
+                        print(f"move left")
+                    elif cam.tag_cx[tag_id] > 130:
+                        self.move_smoothly(0, self.current_angles[0] - 1)
+                        print(f"move right")
+                    else:
+                        break
+                    catch = False    
             while True:
-                cam.read_tags(0) 
-                if cam.tag_detected[tag_id] and cam.tag_distance[tag_id] < 4:
+                cam.read_tags(0)
+                
+                if  cam.tag_detected[tag_id] and cam.tag_distance[tag_id] < 4:
                     print(cam.tag_distance[tag_id])
                     self.move_servo(3, self.current_angles[3]+10)
                     self.move_smoothly(4, 0)
                     catch = True
                     return True
-                                          
-                if cam.tag_detected[tag_id]:                    
+                
+                               
+                if cam.tag_detected[tag_id]:
+                    
                     if cam.tag_cy[tag_id] > 180:
                         self.move_servo(3, self.current_angles[3] - 1)
                     elif cam.tag_cy[tag_id] < 140:
                         self.move_servo(3, self.current_angles[3] + 1)
                     else:
-                        self.move_smoothly(1, self.current_angles[1] - 1)                                        
+                        self.move_smoothly(1, self.current_angles[1] - 1)
+                                        
                 else:
-                    miss_count += 1                
+                    miss_count += 1
+                
                 if miss_count > 50:
                     print("target out of range")
                     return False
 
                 time.sleep(0.2)
-
-    def fix_wrist(self, cam, index):
-        next_direction = 1
+                     
+    def angle_fit(self, tag_id):
+        search_direction = 1
         while True:
-            cam.read_tags(index)
-            detect = cam.tag_detected[index]
-            if detect:
-                self.search_and_grab(index)
-                break
+            result = self.search_and_grab(cam, tag_id)
+            if result:
+                print("catch")
+                return True
             else:
-                next_angle = self.current_angles[3] + (next_direction*5)
-                if next_angle >= 150:
-                    next_angle = 30
-                    next_direction = -1
-                elif next_angle <= 30:
-                    next_angle = 150
-                    next_direction = 1
+                self.search_position1()
+                print("retry")
+                next_angle = self.current_angles[0] + (20 * search_direction)
+                if next_angle >= 180:
+                    next_angle = 180
+                    search_direction = -1
+                elif next_angle <= 0:
+                    next_angle = 0
+                    search_direction = 1
 
-                self.move_smoothly(3, next_angle)
-                time.sleep(1)
+                self.move_servo(0, next_angle)
+                time.sleep(0.5)
+                self.search_position2()  # 再探索位置
 
 #motor
 def forward(rate_a, rate_b):
@@ -564,8 +507,7 @@ def stop():
     BIN1.off()
     BIN2.off()
     
-def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
-    init_yaw = (-init_yaw + 360) % 360 #angleは右回り正で０から360
+def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する #angleは右回り正で０から360
     current_yaw = (-bno.yaw + 360) % 360
     diff = ((current_yaw - init_yaw + 360) % 360)
     print(((angle - diff + 180) % 360) - 180)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
@@ -592,10 +534,12 @@ def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度
             turn_left(20)
             #if angle-diff < -1:
                 #turn_left(20)
-            if ((angle - diff + 180) % 360) + 180 >= 0:
+            if ((angle - diff + 180) % 360) - 180 >= 0:
+                print(((angle - diff + 180) % 360) + 180)
                 stop()
                 break
             time.sleep(0.01)
+
 
 
 def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、、現地で求めたrpmより、ｔを求めてから使う
@@ -607,9 +551,9 @@ def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、�
          while True:
             bno.compute_euler()
             current_yaw = (-bno.yaw + 360) % 360
-            diff = ((current_yaw - init_yaw + 540) % 360) - 180
-            rate_a = -KP_YAW * diff + rpm
-            rate_b = KP_YAW * diff + rpm
+            diff = ((current_yaw - init_yaw + 180) % 360) - 180
+            rate_a = KP_YAW * diff + rpm
+            rate_b = -KP_YAW * diff + rpm
             forward(rate_a, rate_b)
             #print(f"L{diff}")
             now = time.ticks_ms()
@@ -622,16 +566,16 @@ def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、�
         while True:
             bno.compute_euler()
             current_yaw = (-bno.yaw + 360) % 360
-            diff = ((current_yaw - init_yaw + 540) % 360) - 180
-            rate_a = KP_YAW * diff + rpm
-            rate_b = -KP_YAW * diff + rpm
+            diff = ((current_yaw - init_yaw + 180) % 360) - 180
+            rate_a = -KP_YAW * diff + rpm
+            rate_b = KP_YAW * diff + rpm
             backward(rate_a, rate_b)
             #print(f"L{diff}")
             now = time.ticks_ms()
             if (now - start) / 1000 >= t:
                 stop()
                 break
-            time.sleep(0.01)  
+            time.sleep(0.01)   
 
 # スタート判定
 def start():
@@ -708,34 +652,52 @@ def fusing():
     FUSING_GPIO.off()
     log.sd_write("Fusing completed")
 
-#　パラシュート回避
 def avoid_para():
-    while True:
-        cam.read_color()
-        
-        log.sd_write(f"Pixels: {cam.color_pixels}, Center: ({cam.color_cx}, {cam.color_cy})")
-        time.sleep(0.1)
-
-        if 0 < cam.color_pixels[2] <= 15000:
-            if 0 <= cam.color_cx[2] <= 120:
-                turn_right(30)
-            elif 120 < cam.color_cx[2] <= 240:
-                turn_left(30)
-                    
-        elif 15000 < cam.color_pixels[2]:#パラシュートが近いとき
+    cam.detect_para()
+    if cam.para_pixels > 0:
+        if cam.para_pixels > 10000:  # パラシュートが近いとき
+            backward(30, 30)
+            time.sleep(1)
             stop()
-                  
-        else: 
+            
+        if 0 <= cam.para_cx <= 120:
+            turn_right(30)
+            time.sleep(3)
+            stop()
             forward(30, 30)
+            time.sleep(3)
+            stop()
+            turn_left(30)
+            time.sleep(3)
+            stop()
+            forward(30, 30)
+            time.sleep(3)
+            stop()
+            
+        elif 120 < cam.para_cx <= 240:
+            turn_left(30)
+            time.sleep(3)
+            stop()
+            forward(30, 30)
+            time.sleep(3)
+            stop()
+            turn_right(30)
+            time.sleep(3)
+            stop()
+            forward(30, 30)
+            time.sleep(3)
+            stop()
 
-# 目的地以外の地上局を避ける
-def avoid_station():
-    """地上局回避"""
-    
-# GPS誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
-def gps_guidance(index):
-    station_color = [RED, BLUE]
-    goal_lat, goal_lon = STATION[index]
+# GPS誘導(station_num=0で地上局0への誘導、station_num=1で地上局1への誘導)
+def gps_guidance(station_num):
+    if station_num == 0:
+        station_color = 0
+        another_color = 1
+    elif station_num == 1:
+        station_color = 1
+        another_color = 0
+        
+    goal_lat, goal_lon = STATION[station_num]
     
     straight_forward_t(1, 30)
     
@@ -773,11 +735,23 @@ def gps_guidance(index):
         
         cam.read_color()
         
-        if cam.color_pixels[station_color[index - 2]] > 4000:
+        # 地上局回避
+        if cam.color_pixels[another_color] > 10000:
             log.ble_print("Detect another station!")
-            avoid_station()
-            
-        if gps.distance < 10 and cam.color_pixels[station_color[index]]  > 200:
+            bno.compute_euler()
+            init_yaw = bno.yaw
+            soutai_turn(90, init_yaw)
+            forward(30)
+            time.sleep(2)
+            soutai_turn(0, init_yaw)
+            forward(30)
+            time.sleep(2)
+            soutai_turn(270, init_yaw)
+            forward(30)
+            time.sleep(2)
+        
+        # 地上局検知
+        if cam.color_pixels[station_color]  > 300 and cam.aspect_ratio > 1.5 and 1 < cam.color_rotation < 2:
             log.sd_write("GPS guidance completed")
             stop()
             break 
@@ -800,7 +774,10 @@ def color_guidance(index):
         cam.read_color()
         
         if cam.color_pixels[index] == 0:
-            turn_right(30)# 旋回 
+            turn_right(20)# 旋回
+            time.sleep(0.2)
+            stop()
+            
         else:
             cx = cam.color_cx[index]
             rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
@@ -813,155 +790,218 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
+                
 # エイプリルタグに正対するプログラム
-def apriltag_alignment(index):       
+def apriltag_alignment(index): 
     while True:
         cam.read_tags(index)
         detected_id = None
+        corrected_distance = None  
+        ka = None
         # 0～9 のタグIDをすべてチェック
         for i in range(10):  
             if cam.tag_detected[i]:
                 detected_id = i
                 break
+        if detected_id:
+            break
                   # 最初に見つかったタグを使用
+        log.ble_print("No tag detected.")
+        # タグが見つからなければ、右旋回して再探索
+        turn_right(20)
+        time.sleep(0.2)
+        stop()
+            
+    if detected_id is not None:  
+        corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
+        ka = (cam.tag_pitch[detected_id] + 180) % 360 - 180
+        log.ble_print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
+        # タグが検出されたのでループ終了（以降、正対などの処理に進む）
+          
+    else:
+        log.ble_print("No tag detected.")
+        # タグが見つからなければ、右旋回して再探索
+        turn_right(20)
+        time.sleep(0.2)
+        stop()
+        corrected_distance = None  
+        ka = None
+    
+    if ka is not None and ka > 10:
+        log.ble_print("tag detected. L")
+        #10cmバックさせる
+        back_distance =100
+        t_1 = back_distance / (135 * math.pi * (rpm /60))
+        straight_ward("b", t_1)
+        log.ble_print("a")
         
-        if detected_id is not None:  
-            corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
-            ka = cam.tag_pitch[detected_id]
-            print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
-            # タグが検出されたのでループ終了（以降、正対などの処理に進む）
-              
-        else:
-            print("No tag detected.")
-            # タグが見つからなければ、右旋回して再探索
-            turn_right(70)
-            corrected_distance = None  
-            ka = None
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(90, init_yaw)
+        log.ble_print("b")
+        go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
+        t_2 = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t_2)
+        soutai_turn(360 - ka, init_yaw)
+        forward(30,30)
+        time.sleep(1)
+        log.ble_print("c")
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(360 - cam.tag_pitch[detected_id], init_yaw)
         
-        time.sleep(0.5)
-
-        if ka is not None and 10 <= ka <= 180:
-            #20cmバックさせる
-            back_distance =2000
-            t_1 = back_distance / (135 * math.pi * (rpm /60))
-            straight_ward("b", t_1)
-            print("a")
             
-            bno.compute_euler()
-            init_yaw = (-bno.yaw + 360) % 360
-            soutai_turn(90 - ka , init_yaw)
-            print("b")
+        
+    elif ka is not None and ka < -10:
+        #10cmバックさせる
+        log.ble_print("tag detected. R")
+        back_distance =100
+        t_1 = back_distance / (135 * math.pi * (rpm /60))
+        straight_ward("b", t_1)
+        log.ble_print("d")
+        
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(270, init_yaw)
+        log.ble_print("e")
+        go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
+        t_2 = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t_2)
+        soutai_turn(abs(ka), init_yaw)
+        forward(30,30)
+        time.sleep(1)
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(cam.tag_pitch[detected_id], init_yaw)
+        
+        
             
-            if corrected_distance is not None:
-                go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
-                t_2 = go_distance / (135 * math.pi * (rpm /60))
-                straight_ward("f", t_2)
-                soutai_turn(360 - ka, init_yaw)
-                print("c")
-                
-                
-            
-        elif ka is not None and 180 <= ka <= 350:
-            #20cmバックさせる
-            back_distance =2000
-            t_1 = back_distance / (135 * math.pi * (rpm /60))
-            straight_ward("b", t_1)
-            print("d")
-            
-            bno.compute_euler()
-            init_yaw = (-bno.yaw + 360) % 360
-            soutai_turn( 90 - ka , init_yaw)
-            print("e")
-            
-            if corrected_distance is not None:
-                go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
-                t_2 = go_distance / (135 * math.pi * (rpm /60))
-                straight_ward("f", t_2)
-                soutai_turn(ka, init_yaw)
-                print("f")
-                
-# エイプリルタグ認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     target_ids = station_tag[index]
     # コーンの半径（mm）
-    CONES_RADIUS = 300
-    detected_id = None           
-            
-    # 直進：タグまでの距離が20cmになるまで前進   
+    CONES_RADIUS = 199
+    detected_id = None
+    
+    # 直進：タグまでの距離が20cmになるまで前進
     while True:
         cam.read_tags(index)
-        if not cam.tag_detected[detected_id]:
-            turn_right(70)
+        log.ble_print("000")
+        
+        # 検出されたタグを確認
+        for tag_id in target_ids:
+            if cam.tag_detected[tag_id]:
+                detected_id = tag_id
+                break
+            
+        if detected_id is None:
+            #print("No tag detected, searching..."
+            log.ble_print("0000")
+            time.sleep(1)
+            turn_right(20)
             time.sleep(0.5)
+            stop()
             continue
         
-        if cam.tag_distance[detected_id] <= 20:
-            stop()
-        else:
-            straight_ward("f", 0.5)
+        # タグの距離を確認
+        distance = cam.tag_distance[detected_id]
+        log.ble_print("0")
+        
+        # タグID による動作
+        if detected_id in [2, 6]:
+            log.ble_print(f"Tag ID {detected_id}: In position. No further maneuver needed.")
+            #300mm後退
+            t = 300 / (135 * math.pi * (rpm /60))
+            straight_ward("b", t)
+            cx = cam.tag_cx[detected_id]
+            rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
+            rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30, 100))
+            forward(rpm_a, rpm_b)
+            time.sleep(1)
             
-        time.sleep(0.05)
+            stop()
+
+            break
         
-    # タグID による動作
-    if detected_id in [2, 6]:
-        print(f"Tag ID {detected_id}: In position. No further maneuver needed.")
+        elif detected_id in [4, 8]:
+            log.ble_print(f"Tag ID {detected_id}")
+            log.ble_print("1")
+            bno.compute_euler()
+            log.ble_print("2")
+            init_yaw = (-bno.yaw + 360) % 360
+            log.ble_print("3")
+            soutai_turn(90, init_yaw)  # 右90°旋回
+            log.ble_print("h")
+
+            go_distance_1 = CONES_RADIUS + 300
+            t_1 = go_distance_1 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_1)
+            soutai_turn(0, init_yaw)  # 左90°旋回
+            log.ble_print("i")
+            
+            go_distance_2 = CONES_RADIUS + 200
+            t_2 = go_distance_2 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(270, init_yaw)  # 左90°旋回
+            log.ble_print("j")
+            
+        elif detected_id in [3, 7]:
+            log.ble_print(f"Tag ID {detected_id}")
+            
+            bno.compute_euler()
+            
+            init_yaw = (-bno.yaw + 360) % 360
+            log.ble_print("3")
+            soutai_turn(270, init_yaw)  # 左90°旋回
+            log.ble_print("k")
+
+            go_distance_1 = CONES_RADIUS + 300
+            t_1 = go_distance_1 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_1)
+            log.ble_print("5")
+            soutai_turn(0, init_yaw)  # 右90°旋回
+            log.ble_print("l")
+            
+            go_distance_2 = CONES_RADIUS + 300
+            t_2 = go_distance_2 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(90, init_yaw)  # 右90°旋回
+            log.ble_print("m")
+            
+            
+        elif detected_id in [5, 9]:
+            log.ble_print(f"Tag ID {detected_id}")
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            soutai_turn(90, init_yaw)  # 右90°旋回
+            log.ble_print("n")
+            
+            
+            go_distance_1 = CONES_RADIUS + 300
+            t_1 = go_distance_1 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_1)
+            soutai_turn(0, init_yaw)  # 左90°旋回
+            log.ble_print("o")
+            
+            go_distance_2 = 2 * CONES_RADIUS + 300
+            t_2 = go_distance_2 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(270, init_yaw)  # 左90°旋回
+            log.ble_print("p")
+
+            straight_ward("f", t)
+            soutai_turn(180, init_yaw)  # 左90°旋回
+            log.ble_print("q")
     
-    elif detected_id in [4, 8]:
-        log.sd_write(f"Tag ID {detected_id}")
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        soutai_turn(90, init_yaw)  # 右90°旋回
-
-        go_distance = CONES_RADIUS + 2000
-        t = go_distance / (135 * math.pi * (rpm /60))
-        straight_ward("f", t)
-        soutai_turn(0, init_yaw)  # 左90°旋回
-        
-        straight_ward("f", t)
-        soutai_turn(270, init_yaw)  # 左90°旋回
-        
-    elif detected_id in [3, 7]:
-        log.sd_write(f"Tag ID {detected_id}")
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        soutai_turn(270, init_yaw)  # 左90°旋回
-
-        go_distance = CONES_RADIUS + 2000
-        t = go_distance / (135 * math.pi * (rpm /60))
-        straight_ward("f", t)
-        soutai_turn(0, init_yaw)  # 右90°旋回
-        
-        straight_ward("f", t)
-        soutai_turn(90, init_yaw)  # 右90°旋回
-        
-    elif detected_id in [5, 9]:
-        log.sd_write(f"Tag ID {detected_id}")
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        
-        soutai_turn(90, init_yaw)  # 右90°旋回
-        
-        straight_ward("f", t)
-        soutai_turn(0, init_yaw)  # 左90°旋回
-        
-        go_distance = 2 * CONES_RADIUS + 2000
-        t = go_distance / (135 * math.pi * (rpm /60))
-        straight_ward("f", t)
-        soutai_turn(270, init_yaw)  # 左90°旋回
-
-        straight_ward("f", t)
-        soutai_turn(180, init_yaw)  # 左90°旋回 
-    
-def collect_material(cam, index):
+   
+# 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
+def collect_material(index):
     arm.search_position2()
-    time.sleep(1)
-    arm.search_for_target(cam,index)
+    
+    arm.angle_fit(index)
     time.sleep(0.5)
-    arm.inverse_kinematics(cam, index)
-    time.sleep(1)
+        
     arm.moving_position()
-    time.sleep(1)       
+    time.sleep(1)
+    
 
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
@@ -991,7 +1031,6 @@ if __name__ == "__main__":
         apriltag_alignment(1)
         apriltag_guidance(1)
         arm.place_object()
-        collect_material(1)
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
