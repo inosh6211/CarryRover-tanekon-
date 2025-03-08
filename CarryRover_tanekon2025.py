@@ -651,6 +651,13 @@ def fusing():
     time.sleep(0.3)
     FUSING_GPIO.off()
     log.sd_write("Fusing completed")
+    
+    # サブキャリア脱出
+    forward(100, 100)
+    time.sleep(1)
+    forward(30, 30)
+    time.sleep(2)
+    stop()
 
 def avoid_para():
     cam.detect_para()
@@ -698,31 +705,25 @@ def gps_guidance(station_num):
         another_color = 0
         
     goal_lat, goal_lon = STATION[station_num]
-    
-    straight_forward_t(1, 30)
-    
+
     while not gps.update_data(goal_lat, goal_lon):
         gps.read_nmea()
         log.ble_print("Waiting for GPS signal...")
         time.sleep(1)
     
-    while True:
-        gps.read_nmea()
-        gps.update_data(goal_lat, goal_lon)
-        bno.compute_heading()
-        bno.compute_euler()
-        azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
-        log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
-        
-        if azimuth_error > 20:
-            turn_right(30)
-            
-        elif azimuth_error < -20:
-            turn_left(30)
-            
-        else:
-            break
+    gps.read_nmea()
+    gps.update_data(goal_lat, goal_lon)
+    bno.compute_heading()
+    bno.compute_euler()
+    azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
+    log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
     
+    if abs(azimuth_error) > 20:
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        angle = (azimuth_error + 360) % 360
+        soutai_turn(angle, init_yaw)
+
     avoid_para()
         
     while True:
@@ -741,13 +742,13 @@ def gps_guidance(station_num):
             bno.compute_euler()
             init_yaw = bno.yaw
             soutai_turn(90, init_yaw)
-            forward(30)
+            forward(30, 30)
             time.sleep(2)
             soutai_turn(0, init_yaw)
-            forward(30)
+            forward(30, 30)
             time.sleep(2)
             soutai_turn(270, init_yaw)
-            forward(30)
+            forward(30, 30)
             time.sleep(2)
         
         # 地上局検知
@@ -756,11 +757,11 @@ def gps_guidance(station_num):
             stop()
             break 
         
-        if azimuth_error > 20:
-            turn_right(30)
-            
-        elif azimuth_error < -20:
-            turn_left(30)
+        if abs(azimuth_error) > 20:
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            angle = (azimuth_error + 360) % 360
+            soutai_turn(angle, init_yaw)
         
         else:
             forward(30, 30)
