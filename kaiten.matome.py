@@ -799,7 +799,7 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
-def apriltag_alignment(t1, t2, t1_back):
+def apriltag_alignment(t1, t1_back):#t1=backするときの時間
     """
     motor = Motor()
     motor.enable_irq()
@@ -856,15 +856,16 @@ def apriltag_alignment(t1, t2, t1_back):
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            soutai_turn( 360 - (90 - ka) , init_yaw)
+            soutai_turn( 360 - (90 + (ka -360)) , init_yaw)#90--で+
             
             if corrected_distance is not None:
                 go_distance = (corrected_distance + t1_back )* abs(math.sin(math.radians(ka)))
+                t2=go_distance/1秒当たり進む距離
                 straight_ward("f", t2)
-                soutai_turn(ka, init_yaw)
+                soutai_turn(-(ka -360), init_yaw)
                 
 
-def apriltag_guidance(index):
+def apriltag_guidance(t1, t2):#t1=中心から角#かどからかど
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     target_ids = station_tag[index]
     # コーンの半径（mm）
