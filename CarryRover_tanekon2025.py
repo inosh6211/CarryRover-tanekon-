@@ -37,6 +37,8 @@ OUTB_A = Pin(2, Pin.IN)
 OUTA_B = Pin(7, Pin.IN)
 OUTB_B = Pin(6, Pin.IN)
 
+
+rpm = 50                # モーターのrpmを現地で測定
 PPR         = 3         # パルス数 (PPR = CPR / 4)
 GEAR_RATIO  = 297.92    # ギア比
 FREQ        = 20        # タイマー割り込みの周波数 [Hz]
@@ -285,8 +287,6 @@ def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度
 
 def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、、現地で求めたrpmより、ｔを求めてから使う
     start = time.ticks_ms()
-    rpm = 70 #現地で調査
-    #t = distance / (135 * math.pi * (rpm /60))
     bno.compute_euler()
     init_yaw = (-bno.yaw + 360) % 360
                 
@@ -975,7 +975,6 @@ if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
     bno = BNO055Handler(I2C0)
     bme = BME280(I2C0)
-    motor = Motor()
     gps = GPS(UART0)
     cam = CameraReceiver(UART1)
     arm = ArmController(I2C1)
@@ -1011,6 +1010,5 @@ if __name__ == "__main__":
         log.sd_write("Mission completed!")
         
     finally:
-        motor.stop()
-        motor.disable_irq()
+        stop()
         time.sleep(1)
