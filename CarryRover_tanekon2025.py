@@ -692,14 +692,7 @@ def avoid_para():
             stop()
 
 # GPS誘導(station_num=0で地上局0への誘導、station_num=1で地上局1への誘導)
-def gps_guidance(station_num):
-    if station_num == 0:
-        station_color = 0
-        another_color = 1
-    elif station_num == 1:
-        station_color = 1
-        another_color = 0
-        
+def gps_guidance(station_num):        
     goal_lat, goal_lon = STATION[station_num]
 
     while not gps.update_data(goal_lat, goal_lon):
@@ -732,21 +725,6 @@ def gps_guidance(station_num):
         
         cam.read_color()
         
-        # 地上局回避
-        if cam.color_pixels[another_color] > 10000:
-            log.ble_print("Detect another station!")
-            bno.compute_euler()
-            init_yaw = bno.yaw
-            soutai_turn(90, init_yaw)
-            forward(30, 30)
-            time.sleep(2)
-            soutai_turn(0, init_yaw)
-            forward(30, 30)
-            time.sleep(2)
-            soutai_turn(270, init_yaw)
-            forward(30, 30)
-            time.sleep(2)
-        
         # 地上局検知
         if cam.color_pixels[station_color]  > 300 and cam.aspect_ratio[station_color] > 1.5 and 1 < cam.color_rotation[station_color] < 2:
             log.sd_write("GPS guidance completed")
@@ -762,7 +740,7 @@ def gps_guidance(station_num):
         else:
             forward(30, 30)
         
-        time.sleep(0.1)
+        time.sleep(0.01)
 
 # 色認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def color_guidance(index):
@@ -1003,7 +981,7 @@ def collect_material(index):
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
     bno = BNO055Handler(I2C0)
-    bme = BME280(I2C0)
+    bme = BME280(i2c=I2C0)
     gps = GPS(UART0)
     cam = CameraReceiver(UART1)
     arm = ArmController(I2C1)
