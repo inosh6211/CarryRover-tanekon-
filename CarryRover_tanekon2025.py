@@ -786,7 +786,7 @@ def color_guidance(index):
         cam.read_color()
         
         if cam.color_pixels[index] == 0:
-            turn_right(10, 10)# 旋回 
+            turn_right(70)# 旋回 
         else:
             cx = cam.color_cx[index]
             rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
