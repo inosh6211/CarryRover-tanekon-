@@ -8,8 +8,7 @@ class CameraReceiver:
         self.uart = uart
         
         time.sleep(2)
-        
-        """
+    
         # UnitVとの接続確認
         while True:
             self.uart.write("1\n")
@@ -25,7 +24,7 @@ class CameraReceiver:
                 break
             
             time.sleep(0.1)
-            """
+            
 
     def read_camera(self):
         message = ""
@@ -38,41 +37,47 @@ class CameraReceiver:
                 message += char
                 
                 time.sleep(0.01)
-            
+        
+        print(message)
+        
         return message.split(',')
     
-    def detect_para():
+    def detect_para(self):
         # 0: Red, 1: Blue
-        self.color_pixels = 0
-        self.color_cx = 0
-        self.color_cy = 0
+        self.para_pixels = 0
+        self.para_cx = 0
+        self.para_cy = 0
         
         self.uart.write("P\n")
         data = self.read_camera()
         
         if len(data) == 4:
             if data[0] == "P":
-                self.color_pixels[color] = int(data[1])
-                self.color_cx[color] = int(data[2])
-                self.color_cy[color] = int(data[3])
+                self.para_pixels = int(data[1])
+                self.para_cx = int(data[2])
+                self.para_cy = int(data[3])
 
     def read_color(self):
         # 0: Red, 1: Blue
         self.color_pixels = [0] * 2
         self.color_cx = [0] * 2
         self.color_cy = [0] * 2
+        self.aspect_ratio = [0] * 2
+        self.color_rotation = [0] * 2
         
         self.uart.write("C\n")
         data = self.read_camera()
         
         if data[0] == "C":
-            if (len(data) - 1) % 4 == 0:
+            if (len(data) - 1) % 6 == 0:
                 if len(data) > 1:
-                    for i in range((len(data) - 1) // 4):
-                        color = int(data[i * 4 + 1])
-                        self.color_pixels[color] = int(data[i * 4 + 2])
-                        self.color_cx[color] = int(data[i * 4 + 3])
-                        self.color_cy[color] = int(data[i * 4 + 4])
+                    for i in range((len(data) - 1) // 6):
+                        color = int(data[i * 6 + 1])
+                        self.color_pixels[color] = int(data[i * 6 + 2])
+                        self.color_cx[color] = int(data[i * 6 + 3])
+                        self.color_cy[color] = int(data[i * 6 + 4])
+                        self.aspect_ratio[color] = float(data[i * 6 + 5])
+                        self.color_rotation[color] = float(data[i * 6 + 6])
     
     def read_tags(self, mode):
         self.tag_detected = [0] * 10
@@ -102,10 +107,7 @@ if __name__ == "__main__":
     cam = CameraReceiver(UART1)
     
     while True:
-        cam.read_tags(0)
-        print(cam.tag_detected[6])
-        time.sleep(0.1)
-    
-    while True:
         cam.read_color()
-        time.sleep(0.1)
+        for i in range(2):
+            print(cam.color_pixels[i], cam.color_cx[i], cam.color_cy[i], cam.aspect_ratio[i], cam.color_rotation[i])
+        
