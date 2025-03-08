@@ -679,19 +679,24 @@ def avoid_para():
 
         if 0 < cam.color_pixels[2] <= 15000:
             if 0 <= cam.color_cx[2] <= 120:
-                
+                turn_right(70)
             elif 120 < cam.color_cx[2] <= 240:
-                
+                turn_left(70)
                     
         elif 15000 < cam.color_pixels[2]:#パラシュートが近いとき
+            stop()
             time.sleep(10)
                     
-        else: 
+        else:
+            forward(70, 70)
             
 # 目的地以外の地上局を避ける
 def avoid_station():
+    backward(70, 70)
     time.sleep(1)
+    backward(70, 70)
     time.sleep(1)
+    backward(70, 70)
     time.sleep(1)
     
 # GPS誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
@@ -713,11 +718,13 @@ def gps_guidance(index):
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
         log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
         
+        turn_right(70)
         
         if azimuth_error > 20:
+            turn_right(70)
             
         elif azimuth_error < -20:
-            
+            turn_left(70)
         else:
             break
     
@@ -739,13 +746,17 @@ def gps_guidance(index):
             
         if gps.distance < 10 and cam.color_pixels[station_color[index]]  > 200:
             log.sd_write("GPS guidance completed")
+            stop()
             break 
         
         if azimuth_error > 20:
+            turn_right(70)
             
         elif azimuth_error < -20:
+            turn_left(70)
             
         else:
+            forward(70, 70)
             
         time.sleep(0.1)
 
@@ -799,6 +810,7 @@ def apriltag_alignment(index):
             else:
                 print("No tag detected.")
                 # タグが見つからなければ、右旋回して再探索
+                turn_right(70)
                 corrected_distance = None  
                 ka = None
             
@@ -840,20 +852,24 @@ def apriltag_guidance(index):
         if detected_id is not None:
             break
         else:
+            turn_right(70)
             time.sleep(0.5)
+            stop()
             time.sleep(0.1)
             
     # 直進：タグまでの距離が20cmになるまで前進   
     while True:
         cam.read_tags(0)
         if not cam.tag_detected[detected_id]:
+            turn_right(70)
             time.sleep(0.5)
+            stop()
             continue
         
         if cam.tag_distance[detected_id] <= 20:
-            
+            stop()
         else:
-            
+            forward(70, 70)
             
         time.sleep(0.05)
         
@@ -947,4 +963,5 @@ if __name__ == "__main__":
         log.sd_write("Mission completed!")
         
     finally:
+        stop()
         time.sleep(1)
