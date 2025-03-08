@@ -129,11 +129,11 @@ class BNO055Handler:
             sys, gyro, accel, mag = self.bno055.cal_status()
             
             if gyro == 3 and mag == 3:
-                print("BNO055 キャリブレーション完了")
+                log.ble_print("BNO055 calibration completed")
                 break
             
             else:
-                print(f"キャリブレーション gyro:{gyro}, mag:{mag}")
+                log.ble_print(f"BNO055 calibration gyro:{gyro}, mag:{mag}")
                 
             time.sleep(1)
         
@@ -752,7 +752,7 @@ def gps_guidance(station_num):
             time.sleep(2)
         
         # 地上局検知
-        if cam.color_pixels[station_color]  > 300 and cam.aspect_ratio > 1.5 and 1 < cam.color_rotation < 2:
+        if cam.color_pixels[station_color]  > 300 and cam.aspect_ratio[station_color] > 1.5 and 1 < cam.color_rotation[station_color] < 2:
             log.sd_write("GPS guidance completed")
             stop()
             break 
@@ -1015,7 +1015,7 @@ if __name__ == "__main__":
     
     log.sd_write("Setup completed")
     
-    time.sleep(2)
+    time.sleep(5)
     
     try:
         start()
