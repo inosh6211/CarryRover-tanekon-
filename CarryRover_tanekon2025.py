@@ -10,7 +10,7 @@ import math
 import bluetooth
 import sdcard
 
-# シリアル通信のピン設8定
+# シリアル通信のピン設定
 I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
 I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
@@ -799,111 +799,93 @@ def color_guidance(index):
         
         time.sleep(0.1)
 
-def apriltag_alignment(index):
-    motor = Motor()
-    motor.enable_irq()
-    motor.update_rpm(30, 30)
-    
+# エイプリルタグに正対するプログラム
+def apriltag_alignment(index):       
     while True:
         cam.read_tags(index)
         detected_id = None
+        # 0～9 のタグIDをすべてチェック
         for i in range(10):  
-            if cam.tag_detected[i]:  
+            if cam.tag_detected[i]:
                 detected_id = i
                 break
+                  # 最初に見つかったタグを使用
         
-        while True:
-            cam.read_tags(index)
-            detected_id = None
-            # 0～9 のタグIDをすべてチェック
-            for i in range(10):  
-                if cam.tag_detected[i]:
-                    detected_id = i
-                    break
-                      # 最初に見つかったタグを使用
-            
-            if detected_id is not None:  
-                corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
-                ka = cam.tag_pitch[detected_id]
-                print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
-                # タグが検出されたのでループ終了（以降、正対などの処理に進む）
-                break  
-            else:
-                print("No tag detected.")
-                # タグが見つからなければ、右旋回して再探索
-                motor.update_rpm(20, 20)
-                motor.run(TURN_R)
-                corrected_distance = None  
-                ka = None
-            
-            time.sleep(0.1)
+        if detected_id is not None:  
+            corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
+            ka = cam.tag_pitch[detected_id]
+            print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
+            # タグが検出されたのでループ終了（以降、正対などの処理に進む）
+              
+        else:
+            print("No tag detected.")
+            # タグが見つからなければ、右旋回して再探索
+            turn_right(70)
+            corrected_distance = None  
+            ka = None
+        
+        time.sleep(0.5)
 
         if ka is not None and 10 <= ka <= 180:
-            motor.straight_ward("b", 1000, 30)
+            #20cmバックさせる
+            back_distance =2000
+            t_1 = back_distance / (135 * math.pi * (rpm /60))
+            straight_ward("b", t_1)
+            print("a")
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            motor.soutai_turn(ka - 90 , init_yaw)
+            soutai_turn(90 - ka , init_yaw)
+            print("b")
             
             if corrected_distance is not None:
-                go_distance = (corrected_distance + 1000 )* abs(math.sin(math.radians(ka)))
-                motor.straight_ward("f", go_distance, 30)
-                motor.soutai_turn(360 - ka, init_yaw)
+                go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
+                t_2 = go_distance / (135 * math.pi * (rpm /60))
+                straight_ward("f", t_2)
+                soutai_turn(360 - ka, init_yaw)
+                print("c")
+                
                 
             
         elif ka is not None and 180 <= ka <= 350:
-            motor.straight_ward("b", 1000, 30)
+            #20cmバックさせる
+            back_distance =2000
+            t_1 = back_distance / (135 * math.pi * (rpm /60))
+            straight_ward("b", t_1)
+            print("d")
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            motor.soutai_turn( 90 - ka , init_yaw)
+            soutai_turn( 90 - ka , init_yaw)
+            print("e")
             
             if corrected_distance is not None:
-                go_distance = (corrected_distance + 100 )* abs(math.sin(math.radians(ka)))
-                motor.straight_ward("f", go_distance, 30)
-                motor.soutai_turn(ka, init_yaw)
+                go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
+                t_2 = go_distance / (135 * math.pi * (rpm /60))
+                straight_ward("f", t_2)
+                soutai_turn(ka, init_yaw)
+                print("f")
                 
-
+# エイプリルタグ認識による誘導(index=0で地上局0への誘導、index=1で地上局1への誘導)
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
     target_ids = station_tag[index]
     # コーンの半径（mm）
     CONES_RADIUS = 300
-    
-    motor.enable_irq()
-    detected_id = None
-    
-    while True:
-        cam.read_tags(index)
-        for tid in target_ids:
-            if cam.tag_detected[tid]:
-                detected_id = tid
-                log.sd_write(f"Detected tag ID: {detected_id}")
-                break
-        if detected_id is not None:
-            break
-        else:
-            motor.update_rpm(10, 10)
-            motor.run(TURN_R)
-            time.sleep(0.5)
-            motor.stop()
-            time.sleep(0.1)
+    detected_id = None           
             
     # 直進：タグまでの距離が20cmになるまで前進   
     while True:
-        cam.read_tags(0)
+        cam.read_tags(index)
         if not cam.tag_detected[detected_id]:
-            motor.update_rpm(10, 10)
-            motor.run(TURN_R)
+            turn_right(70)
             time.sleep(0.5)
-            motor.stop()
             continue
         
         if cam.tag_distance[detected_id] <= 20:
-            motor.stop()
+            stop()
         else:
-            motor.update_rpm(30, 30)
-            motor.run(FORWARD)
+            straight_ward("f", 0.5)
             
         time.sleep(0.05)
         
@@ -912,48 +894,50 @@ def apriltag_guidance(index):
         print(f"Tag ID {detected_id}: In position. No further maneuver needed.")
     
     elif detected_id in [4, 8]:
-        log.sd_write(f"Tag ID {detected_id}: Executing maneuver: right 90°, forward (r+20), left 90°, forward (r+20), left 90°")
+        log.sd_write(f"Tag ID {detected_id}")
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(90, init_yaw)  # 右90°旋回
-        motor.straight_ward("f", CONES_RADIUS + 20, 30)
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(270, init_yaw)  # 左90°旋回
-        motor.straight_ward("f", CONES_RADIUS + 20, 30)
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(270, init_yaw)  # 左90°旋回
+        soutai_turn(90, init_yaw)  # 右90°旋回
+
+        go_distance = CONES_RADIUS + 2000
+        t = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t)
+        soutai_turn(0, init_yaw)  # 左90°旋回
+        
+        straight_ward("f", t)
+        soutai_turn(270, init_yaw)  # 左90°旋回
         
     elif detected_id in [3, 7]:
-        log.sd_write(f"Tag ID {detected_id}: Executing maneuver: left 90°, forward (r+20), right 90°, forward (r+20), right 90°")
+        log.sd_write(f"Tag ID {detected_id}")
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(270, init_yaw)  # 左90°旋回
-        motor.straight_ward("f", CONES_RADIUS + 20, 30)
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(90, init_yaw)   # 右90°旋回
-        motor.straight_ward("f", CONES_RADIUS + 20, 30)
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(90, init_yaw)   # 右90°旋回
+        soutai_turn(270, init_yaw)  # 左90°旋回
+
+        go_distance = CONES_RADIUS + 2000
+        t = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t)
+        soutai_turn(0, init_yaw)  # 右90°旋回
+        
+        straight_ward("f", t)
+        soutai_turn(90, init_yaw)  # 右90°旋回
         
     elif detected_id in [5, 9]:
-        log.sd_write(f"Tag ID {detected_id}: Executing maneuver: right 90°, forward (2*r+20), left 90°, forward (r+20), left 90°")
+        log.sd_write(f"Tag ID {detected_id}")
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(90, init_yaw)   # 右90°旋回
-        motor.straight_ward("f", 2 * CONES_RADIUS + 20, 30)
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(270, init_yaw)  # 左90°旋回
-        motor.straight_ward("f", CONES_RADIUS + 20, 30)
-        bno.compute_euler()
-        init_yaw = (-bno.yaw + 360) % 360
-        motor.soutai_turn(270, init_yaw)  # 左90°旋回
-    
-    motor.disable_irq()
+        
+        soutai_turn(90, init_yaw)  # 右90°旋回
+        
+        straight_ward("f", t)
+        soutai_turn(0, init_yaw)  # 左90°旋回
+        
+        go_distance = 2 * CONES_RADIUS + 2000
+        t = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t)
+        soutai_turn(270, init_yaw)  # 左90°旋回
+
+        straight_ward("f", t)
+        soutai_turn(180, init_yaw)  # 左90°旋回
             
             
     
@@ -996,13 +980,13 @@ if __name__ == "__main__":
         collect_material(0)
         gps_guidance(1)
         color_guidance(1)
-        apriltag_alignment()
+        apriltag_alignment(1)
         apriltag_guidance(1)
         arm.place_object()
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
-        apriltag_alignment()
+        apriltag_alignment(0)
         apriltag_guidance(0)
         arm.place_object()
         
