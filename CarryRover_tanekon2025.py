@@ -247,39 +247,39 @@ def stop():
     BIN2.off()
     
 def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
-        while True:                    #angleは右回り正で０から360
-            current_yaw = (-bno.yaw + 360) % 360
-            diff = ((current_yaw - init_yaw + 360) % 360)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
-            if ((angle - diff + 360) % 360) <= 180:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
-                while True:
-                    #print(diff)
-                    bno.compute_euler()
-                    current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-                    diff = ((current_yaw - init_yaw + 360) % 360)
+    while True:                    #angleは右回り正で０から360
+        current_yaw = (-bno.yaw + 360) % 360
+        diff = ((current_yaw - init_yaw + 360) % 360)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
+        if ((angle - diff + 360) % 360) <= 180:#angleはたどり着きたい角度のinit_yawから右回り正のやつ
+            while True:
+                #print(diff)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
+                diff = ((current_yaw - init_yaw + 360) % 360)
+                turn_right(70)
+                if angle-diff < -1:
                     turn_right(70)
-                    if angle-diff < -1:
-                        turn_right(70)
-                    if abs(angle-diff) <= 1:
-                        stop()
-                        break
-                    time.sleep(0.01)
-            elif ((angle - diff + 360) % 360) > 180:
-                while True:
-                    print(diff)
-                    bno.compute_euler()
-                    current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
-                    diff = ((current_yaw - init_yaw + 360) % 360)
+                if abs(angle-diff) <= 1:
+                    stop()
+                    break
+                time.sleep(0.01)
+        elif ((angle - diff + 360) % 360) > 180:
+            while True:
+                print(diff)
+                bno.compute_euler()
+                current_yaw = (-bno.yaw + 360) % 360#右回り正にしたいなら(bno.yaw + 360)
+                diff = ((current_yaw - init_yaw + 360) % 360)
+                turn_right(70)
+                if angle-diff > 1:
                     turn_right(70)
-                    if angle-diff > 1:
-                        turn_right(70)
-                    if abs(angle-diff) <= 1:
-                        stop()
-                        break
-                    time.sleep(0.01)
-            if abs(angle-diff) <= 1:#358to2とかで359とかでとまったときにdiff >= 90認定されないように
-                print("stop")
-                break
-            time.sleep(0.01) 
+                if abs(angle-diff) <= 1:
+                    stop()
+                    break
+                time.sleep(0.01)
+        if abs(angle-diff) <= 1:#358to2とかで359とかでとまったときにdiff >= 90認定されないように
+            print("stop")
+            break
+        time.sleep(0.01) 
 
 
 
@@ -318,7 +318,10 @@ def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、�
             if (now - start) / 1000 >= t:
                 stop()
                 break
-            time.sleep(0.01)
+            time.sleep(0.01)  
+
+
+
 
 
 
@@ -391,7 +394,6 @@ class GPS:
                 log.ble_print(f"PDOP: {self.micropygps.pdop}, Satellites: {self.micropygps.satellites_in_use}")
                 
         return False
-    
 
 class CameraReceiver:
     def __init__(self, uart):
