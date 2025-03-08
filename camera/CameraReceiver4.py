@@ -36,10 +36,6 @@ class CameraReceiver:
                     break
                 message += char
                 
-                time.sleep(0.01)
-        
-        print(message)
-        
         return message.split(',')
     
     def detect_para(self):
