@@ -8,7 +8,7 @@ class CameraReceiver:
         self.uart = uart
         
         time.sleep(2)
-    
+        """
         # UnitVとの接続確認
         while True:
             self.uart.write("1\n")
@@ -24,7 +24,7 @@ class CameraReceiver:
                 break
             
             time.sleep(0.1)
-            
+            """
 
     def read_camera(self):
         message = ""
@@ -95,19 +95,19 @@ class CameraReceiver:
                 if (len(data) - 1) % 6 == 0:
                     for i in range((len(data) - 1) // 6):
                         tag_id = int(data[i * 6 + 1])
-                        self.tag_detected[tag_id] = 1
-                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
-                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
-                        self.tag_distance[tag_id] = float(data[i * 6 + 4])
-                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
-                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
+                        if tag_id < 10:
+                            self.tag_detected[tag_id] = 1
+                            self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                            self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                            self.tag_distance[tag_id] = float(data[i * 6 + 4])
+                            self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                            self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
 if __name__ == "__main__":
     cam = CameraReceiver(UART1)
     
     while True:
-        cam.read_color()
-        for i in range(2):
-            print(cam.color_pixels[i], cam.color_cx[i], cam.color_cy[i], cam.aspect_ratio[i], cam.color_rotation[i])
+        cam.read_tags(0)
+        print(cam.tag_detected[3])
         
