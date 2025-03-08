@@ -10,7 +10,7 @@ import math
 import bluetooth
 import sdcard
 
-# シリアル通信のピン設8定
+# シリアル通信のピン設定
 I2C0 = I2C(0, sda=Pin(20), scl=Pin(21))
 I2C1 = I2C(1, scl=Pin(27), sda=Pin(26))
 SPI1 = SPI(1, sck=Pin(10), mosi=Pin(11), miso=Pin(12))
@@ -31,27 +31,6 @@ PWMB = PWM(Pin(28))
 PWMB.freq(1000)
 STBY = Pin(9, Pin.OUT, value=1)
 
-# エンコーダピン設定
-OUTA_A = Pin(3, Pin.IN)
-OUTB_A = Pin(2, Pin.IN)
-OUTA_B = Pin(7, Pin.IN)
-OUTB_B = Pin(6, Pin.IN)
-
-
-rpm = 50                # モーターのrpmを現地で測定
-PPR         = 3         # パルス数 (PPR = CPR / 4)
-GEAR_RATIO  = 297.92    # ギア比
-FREQ        = 20        # タイマー割り込みの周波数 [Hz]
-KP_RPM      = 0.2       # RPM制御の比例ゲイン
-KP_YAW      = 0.1
-
-# モーター状態
-STOP       = 0 
-FORWARD    = 1
-TURN_R     = 2
-TURN_L     = 3
-BACKWARD   = 4
-
 # GPS
 EARTH_RADIUS = 6378137  # 地球の半径(m)
 PDOP = 5                # PDOPの閾値
@@ -64,11 +43,8 @@ STATION = [
 DEVICE_NAME = "RPpicoW"   # Bluetoorhのデバイス名
 FILE_NAME = "CarryRover"  # ログを保存するファイル名
 
-# 画像誘導
-RED    = 0
-BLUE   = 1
-PURPLE = 2
-
+# ゲイン
+KP_YAW      = 0.1
 KP_CAMERA = 0.05
 
 
@@ -304,7 +280,6 @@ class CameraReceiver:
         return message.split(',')
     
     def detect_para(self):
-        # 0: Red, 1: Blue
         self.para_pixels = 0
         self.para_cx = 0
         self.para_cy = 0
@@ -319,7 +294,6 @@ class CameraReceiver:
                 self.para_cy = int(data[3])
 
     def read_color(self):
-        # 0: Red, 1: Blue
         self.color_pixels = [0] * 2
         self.color_cx = [0] * 2
         self.color_cy = [0] * 2
