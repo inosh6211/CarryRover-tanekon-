@@ -47,6 +47,9 @@ FILE_NAME = "CarryRover"  # ログを保存するファイル名
 KP_YAW      = 0.1
 KP_CAMERA = 0.05
 
+#　モーターのrpmを現地で測定
+rpm = 50
+
 
 class Logger:
     def __init__(self, spi, cs):
