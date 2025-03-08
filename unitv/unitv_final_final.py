@@ -94,18 +94,24 @@ while True:
                 )
 
                 if blobs:
-                    for blob in blobs:
-                        aspect_ratio = blob.h() / blob.w()
-                        if aspect_ratio > 1.5 and 1 < blob.rotation() < 2:
-                            largest_blob = max(blobs, key=lambda b: b.pixels())
-                            color_data.extend([color, largest_blob.pixels(), largest_blob.cx(), largest_blob.cy()])
+                    largest_blob = max(blobs, key=lambda b: b.pixels())
+                    aspect_ratio = largest_blob.h() / largest_blob.w()
+                    color_data.extend([
+                        color,
+                        largest_blob.pixels(),
+                        largest_blob.cx(),
+                        largest_blob.cy(),
+                        aspect_ratio,
+                        largest_blob.rotation()
+
+                    ])
 
             message = ",".join(map(str, color_data)) + "\n"
             uart.write(message)
 
         # AprilTag検出(通常時)
         elif command == "T0":
-            tags = img.find_apriltags(roi=ROI[0], families=image.TAG16H5)
+            tags = img.find_apriltags(roi=ROI[0])
             tag_data = ["T"]
 
             for tag in tags:
@@ -124,7 +130,7 @@ while True:
 
         # AprilTag検出(物資保持時)
         elif command == "T1":
-            tags = img.find_apriltags(roi=ROI[1], families=image.TAG16H5)
+            tags = img.find_apriltags(roi=ROI[1])
             tag_data = ["T"]
 
             for tag in tags:
