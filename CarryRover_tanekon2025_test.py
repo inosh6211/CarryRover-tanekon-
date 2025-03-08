@@ -277,8 +277,6 @@ class CameraReceiver:
                 if char == "\n":
                     break
                 message += char
-                
-                time.sleep(0.01)
         
         print(message)
         
@@ -516,8 +514,7 @@ def stop():
     BIN1.off()
     BIN2.off()
     
-def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する
-    init_yaw = (-init_yaw + 360) % 360 #angleは右回り正で０から360
+def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度の差を示し、angleはその中のdiffの角度をさし、そこに向かって回転する #angleは右回り正で０から360
     current_yaw = (-bno.yaw + 360) % 360
     diff = ((current_yaw - init_yaw + 360) % 360)
     print(((angle - diff + 180) % 360) - 180)#((x - y + 360) % 360)はx,yが右回り正、0から360の時ｙをきじゅんとしてｘと角度差の角度差を0から360に変換する
@@ -544,7 +541,8 @@ def soutai_turn(angle, init_yaw):#diffは右回り正の,init_yawからの角度
             turn_left(20)
             #if angle-diff < -1:
                 #turn_left(20)
-            if ((angle - diff + 180) % 360) + 180 >= 0:
+            if ((angle - diff + 180) % 360) - 180 >= 0:
+                print(((angle - diff + 180) % 360) + 180)
                 stop()
                 break
             time.sleep(0.01)
@@ -784,12 +782,12 @@ def apriltag_alignment(index):
         
         if detected_id is not None:  
             corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
-            ka = cam.tag_pitch[detected_id]
-            print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
+            ka = (cam.tag_pitch[detected_id] + 180) % 360 - 180
+            log.ble_print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
             # タグが検出されたのでループ終了（以降、正対などの処理に進む）
               
         else:
-            print("No tag detected.")
+            log.ble_print("No tag detected.")
             # タグが見つからなければ、右旋回して再探索
             turn_right(20)
             time.sleep(0.2)
@@ -797,54 +795,50 @@ def apriltag_alignment(index):
             corrected_distance = None  
             ka = None
         
-        time.sleep(0.5)
-
-        if ka is not None and 20 <= ka <= 180:
+        if ka is not None and ka > 10:
+            log.ble_print("tag detected. L")
             #10cmバックさせる
             back_distance =100
             t_1 = back_distance / (135 * math.pi * (rpm /60))
             straight_ward("b", t_1)
-            #print("a")
+            log.ble_print("a")
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            soutai_turn(90 - ka , init_yaw)
-            #print("b")
+            soutai_turn(90, init_yaw)
+            log.ble_print("b")
+            go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
+            t_2 = go_distance / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(360 - (90 + ka), init_yaw)
+            stop()
+            break
+            log.ble_print("c")
             
-            if corrected_distance is not None:
-                go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
-                t_2 = go_distance / (135 * math.pi * (rpm /60))
-                straight_ward("f", t_2)
-                soutai_turn(360 - ka, init_yaw)
-                stop()
-                break
-                #print("c")
-                
                 
             
-        elif ka is not None and 180 <= ka <= 340:
+        elif ka is not None and ka < -10:
             #10cmバックさせる
-            back_distance = 100
+            log.ble_print("tag detected. R")
+            back_distance =100
             t_1 = back_distance / (135 * math.pi * (rpm /60))
             straight_ward("b", t_1)
-            #print("d")
+            log.ble_print("d")
             
             bno.compute_euler()
             init_yaw = (-bno.yaw + 360) % 360
-            soutai_turn( 360-(90-(360-ka)) , init_yaw)
-            #print("e")
-            
-            if corrected_distance is not None:
-                go_distance = (corrected_distance + back_distance )* abs(math.sin(math.radians(ka)))
-                t_2 = go_distance / (135 * math.pi * (rpm /60))
-                straight_ward("f", t_2)
-                soutai_turn( 360-ka , init_yaw)
-                stop()
-                #print("f")
-                break
+            soutai_turn(270, init_yaw)
+            log.ble_print("e")
+            go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
+            t_2 = go_distance / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(abs(ka), init_yaw)
+            stop()
+            break
                 
-            elif ka is not None and 0 <= ka <= 20 or 340 <= ka <= 360:
-                break
+        elif ka is not None and abs(ka) <= 10:
+            log.ble_print("f")
+            break
             
 def apriltag_guidance(index):
     station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
@@ -932,7 +926,7 @@ def collect_material(index):
     
 
 if __name__ == "__main__":
-    #log = Logger(SPI1, SPI1_CS)
+    log = Logger(SPI1, SPI1_CS)
     bno = BNO055Handler(I2C0)
     #bme = BME280(I2C0)
     #gps = GPS(UART0)
