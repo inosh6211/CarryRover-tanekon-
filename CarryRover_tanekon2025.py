@@ -994,6 +994,7 @@ if __name__ == "__main__":
         apriltag_alignment(1)
         apriltag_guidance(1)
         arm.place_object()
+        collect_material(1)
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
