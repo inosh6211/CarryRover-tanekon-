@@ -93,7 +93,6 @@ class Logger:
             self.p.send(message)
 
     def sd_write(self, message):
-        t0 = time.ticks_ms()
         print(message)
         if self.p.is_connected():
             self.p.send(message)
@@ -103,9 +102,6 @@ class Logger:
                 f.write(message + "\n")
         except OSError as e:
             self.ble_print(f"SD card not detected: {e}")
-            
-        t1 = time.ticks_ms()
-        dt = time.ticks_diff(t1, t0)
 
 
 class BNO055Handler:
