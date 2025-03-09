@@ -335,6 +335,10 @@ class ArmController:
     def __init__(self, i2c):
         self.servos = Servos(i2c)
         self.servos.pca9685.freq(50)
+        self.L1 = 80
+        self.L2 = 120
+        self.L3 = 100
+        self.Z = 0
         self.init_angles = [180, 170, 0, 0, 0]
         self.current_angles = self.init_angles[:]
         
@@ -365,11 +369,37 @@ class ArmController:
         self.move_smoothly(3, 110)
         self.move_smoothly(4, 80)
         
+    def detect_object(self, cam, tag_id):
+        while True:
+            cam.read_tags(0)
+            if cam.tag_detected[tag_id]:
+                CY = cam.tag_cy[tag_id]
+                
+                if CY > 180:
+                    self.move_smoothly(3, self.current_angles[3] - 1)
+                elif CY < 140:
+                    self.move_smoothly(3, self.current_angles[3] + 1)
+                else:
+                    break
+                
+                time.sleep(0.1)
+                while True:
+                    cam.read_tags(0)
+                    if cam.tag_detected[tag_id]:
+                        self.Z = 10*cam.tag_distance[tag_id]
+                        break
+                            
+                
+        
     def moving_position(self):
         self.move_smoothly(1, 170)
         self.move_smoothly(2, 90)
         self.move_smoothly(3, 100)
         self.move_smoothly(0, 90)
+        
+    def back_position(self):
+        self.move_smoothly(3,170)
+        self.move_smoothly(2,170)
         
     def place_object(self):
         self.move_smoothly(0, 120)
@@ -380,8 +410,90 @@ class ArmController:
         self.move_smoothly(1, 110)
         self.move_smoothly(2, 120)
         self.move_smoothly(3, 170)
-        self.move_smoothly(0, 50)
+        self.move_smoothly(0, 60)
         
+    def search_for_target(self, cam, tag_id):
+        found = False
+        for angle in range(self.current_angles[3], 50, -1):
+            self.move_servo(3,angle)
+            cam.read_tags(0)
+            
+            if cam.tag_detected[tag_id]:
+                found = True
+                break
+                time.sleep(0.2)
+        if not found:
+            self.search_position2()
+
+            search_direction = 1
+            search_angle_step = 2
+            max_search_range = 60  
+            fix_angle = 0
+
+            for _ in range(int(max_search_range / search_angle_step)):  
+                cam.read_tags(0)
+
+                if cam.tag_detected[tag_id]:  
+                    found = True
+                    break
+
+
+                fix_angle += search_angle_step
+                fix_angle = min(fix_angle, max_search_range) 
+                
+                next_angle = self.current_angles[0] + (search_direction * fix_angle)
+
+                next_angle = max(0, min(180, next_angle))
+
+                self.move_smoothly(0, next_angle)
+                search_direction *= -1  
+
+                time.sleep(3)  # 探索間隔を少し開ける
+
+        if found and cam.tag_detected[tag_id]:
+            while True:
+                cam.read_tags(0)
+                if cam.tag_cx[tag_id] < 110:
+                    self.move_smoothly(0, self.current_angles[0] + 1)
+                elif cam.tag_cx[tag_id] > 130:
+                    self.move_smoothly(0, self.current_angles[0] - 1)
+                else:
+                    break
+                
+    def inverse_kinematics(self, cam, tag_id):
+        
+        x_t = -self.L1 * math.cos(math.radians(170 - self.current_angles[1])) + \
+              self.L2 * math.cos(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) + \
+              (self.L3 + self.Z - 3) * math.cos(math.radians(180 - (self.current_angles[2] - (170 - self.current_angles[1])) - self.current_angles[3]))
+
+        y_t = self.L1 * math.sin(math.radians(170 - self.current_angles[1])) + \
+              self.L2 * math.sin(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) - \
+              (self.L3 + self.Z - 3) * math.sin(math.radians(180 - (self.current_angles[2] - (170 - self.current_angles[1])) - self.current_angles[3]))
+               
+        d = math.sqrt(x_t**2 + y_t**2)
+
+        L_12 = math.sqrt(self.L1**2 + self.L2**2 - 2 * self.L1 * self.L2 * math.cos(math.radians(self.current_angles[2])))
+        theta3_prime = math.degrees(math.acos((self.L2**2 + L_12**2 - self.L1**2) / (2 * self.L2 * L_12)))
+        
+        theta5 = math.degrees(math.acos((L_12**2 + self.L3**2 - d**2) / (2 * L_12 * self.L3)))
+        target_theta_3 = theta5 + theta3_prime
+        
+        self.move_smoothly(3, int(target_theta_3))
+        time.sleep(1)
+        
+        x_b = -self.L1 * math.cos(math.radians(170 - self.current_angles[1])) + \
+              self.L2 * math.cos(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) + \
+              self.L3 * math.cos(math.radians((target_theta_3 + (self.current_angles[2] - (170 - self.current_angles[1]))) - 180))
+        
+        y_b = self.L1 * math.sin(math.radians(170 - self.current_angles[1])) + \
+              self.L2 * math.sin(math.radians(self.current_angles[2] - (170 - self.current_angles[1]))) + \
+              self.L3 * math.sin(math.radians((target_theta_3 + (self.current_angles[2] - (170 - self.current_angles[1]))) - 180))
+
+        
+        phi = int(math.degrees(math.acos((2*d**2 - ((x_t - x_b)**2 + (y_t - y_b)**2)) / (2*d**2))))
+        
+        self.move_smoothly(1, self.current_angles[1] - phi+5)
+    
     def search_and_grab(self, cam, tag_id):
         miss_count = 0
         for angle in range(self.current_angles[3], 40, -1):
@@ -391,23 +503,13 @@ class ArmController:
             if cam.tag_detected[tag_id]:
                 break
                 print(f"kenchi")
-                while True:
-                    cam.read_tags(0)
-                    if cam.tag_cx[tag_id] < 110:
-                        self.move_smoothly(0, self.current_angles[0] + 1)
-                        print(f"move left")
-                    elif cam.tag_cx[tag_id] > 130:
-                        self.move_smoothly(0, self.current_angles[0] - 1)
-                        print(f"move right")
-                    else:
-                        break
-                    catch = False    
+               
             while True:
                 cam.read_tags(0)
                 
                 if  cam.tag_detected[tag_id] and cam.tag_distance[tag_id] < 4:
                     print(cam.tag_distance[tag_id])
-                    self.move_servo(3, self.current_angles[3]+10)
+                    self.move_servo(3, self.current_angles[3]+5)
                     self.move_smoothly(4, 0)
                     catch = True
                     return True
@@ -421,7 +523,8 @@ class ArmController:
                         self.move_servo(3, self.current_angles[3] + 1)
                     else:
                         self.move_smoothly(1, self.current_angles[1] - 1)
-                                        
+                                       
+                
                 else:
                     miss_count += 1
                 
@@ -430,29 +533,31 @@ class ArmController:
                     return False
 
                 time.sleep(0.2)
-                     
-    def angle_fit(self, tag_id):
-        search_direction = 1
+                
+     def fix_wrist(self, cam, index):
+        
+        next_direction = 1
         while True:
-            result = self.search_and_grab(cam, tag_id)
-            if result:
-                print("catch")
-                return True
+            cam.read_tags(index)
+            detect = cam.tag_detected[index]
+            
+            if detect:
+                self.search_and_grab(index)
+                break
+                
             else:
-                self.search_position1()
-                print("retry")
-                next_angle = self.current_angles[0] + (20 * search_direction)
-                if next_angle >= 180:
-                    next_angle = 180
-                    search_direction = -1
-                elif next_angle <= 0:
-                    next_angle = 0
-                    search_direction = 1
-
-                self.move_servo(0, next_angle)
-                time.sleep(0.5)
-                self.search_position2()  # 再探索位置
-
+                
+                next_angle = self.current_angles[3] + (next_direction * 5)
+                
+                if next_angle >= 150:
+                    next_angle = 30
+                    next_direction = -1
+                elif next_angle <= 30:
+                    next_angle = 150
+                    next_direction = 1
+                    
+                self.move_smoothly(3, next_angle)
+                time.sleep(1)
 #motor
 def forward(rate_a, rate_b):
     rate_a = max(0, min(rate_a, 100))
@@ -970,13 +1075,15 @@ def apriltag_guidance(index):
 # 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
 def collect_material(index):
     arm.search_position2()
-    
-    arm.angle_fit(index)
+    time.sleep(1)
+    arm.search_for_target(cam,index)
     time.sleep(0.5)
-        
+    arm.detect_object(cam, index)
+    arm.inverse_kinematics(cam, index)
+    time.sleep(1)
     arm.moving_position()
     time.sleep(1)
-    
+    arm.back_position()
 
 if __name__ == "__main__":
     log = Logger(SPI1, SPI1_CS)
@@ -1006,6 +1113,7 @@ if __name__ == "__main__":
         apriltag_alignment(1)
         apriltag_guidance(1)
         arm.place_object()
+        collect_material(1)
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
