@@ -35,8 +35,8 @@ STBY = Pin(9, Pin.OUT, value=1)
 EARTH_RADIUS = 6378137  # 地球の半径(m)
 PDOP = 5                # PDOPの閾値
 STATION = [
-    (35.9180565, 139.9086761),  # 地上局0の経度緯度
-    (35.9180565, 139.9086761)  # 地上局１の経度緯度
+    (30.3741608, 130.9601135),  # 地上局0の経度緯度
+    (30.3744202, 130.9598541)  # 地上局１の経度緯度
 ]
 
 # 制御ログ
@@ -46,9 +46,6 @@ FILE_NAME = "CarryRover"  # ログを保存するファイル名
 # ゲイン
 KP_YAW      = 0.1
 KP_CAMERA = 0.05
-
-#　モーターのrpmを現地で測定
-rpm = 30
 
 
 class Logger:
@@ -325,13 +322,16 @@ class CameraReceiver:
                 if (len(data) - 1) % 6 == 0:
                     for i in range((len(data) - 1) // 6):
                         tag_id = int(data[i * 6 + 1])
-                        if tag_id < 10:
-                            self.tag_detected[tag_id] = 1
-                            self.tag_cx[tag_id] = int(data[i * 6 + 2])
-                            self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                        if tag_id in [0,1]:
+                            self.tag_distance[tag_id] = 0.8136 * float(data[i * 6 + 4]) + 1.9753 - 2
+                        else:
                             self.tag_distance[tag_id] = float(data[i * 6 + 4])
-                            self.tag_roll[tag_id] = float(data[i * 6 + 5])
-                            self.tag_pitch[tag_id] = float(data[i * 6 + 6])
+                            
+                        self.tag_detected[tag_id] = 1
+                        self.tag_cx[tag_id] = int(data[i * 6 + 2])
+                        self.tag_cy[tag_id] = int(data[i * 6 + 3])
+                        self.tag_roll[tag_id] = float(data[i * 6 + 5])
+                        self.tag_pitch[tag_id] = float(data[i * 6 + 6])
 
 
 class ArmController:
@@ -537,7 +537,7 @@ class ArmController:
 
                 time.sleep(0.2)
                 
-     def fix_wrist(self, cam, index):
+    def fix_wrist(self, cam, index):
         
         next_direction = 1
         while True:
@@ -681,37 +681,18 @@ def straight_ward(ward, t):#　t = distance / (135 * math.pi * (rpm /60))で、�
                 break
             time.sleep(0.01)   
 
-# スタート判定
-def start():
-    init_pressure = bme.pressure()
-    
-    while True:
-        current_pressure = bme.pressure()
-        diff_pressure = current_pressure - init_pressure
-        bno.compute_euler()
-        log.sd_write(f"Roll angle: {bno.roll}, pressure change: {diff_pressure}")
-        
-        if abs(bno.roll) > 45 and abs(bno.roll) < 135 and diff_pressure < -1:
-            log.sd_write("Mission start!")
-            break
-        
-        time.sleep(0.1)
 
 # 放出判定
 def released():
     count = 0
-    
+    start = time.time()
     while True:
+        now = time.time()
         bno.compute_euler()
         roll = bno.roll
-        log.sd_write(f"Roll angle: {roll}")
-        
-        if abs(roll) < 45:
-          count += 1
-        else:
-          count = 0
-          
-        if count >= 5:
+        t = now - start
+        log.sd_write(f"Roll angle: {roll}, Time: {t}")
+        if abs(roll) < 45 and t > 300:
             log.sd_write("Released")
             break
         
@@ -752,52 +733,18 @@ def landing():
 # 溶断
 def fusing():
     FUSING_GPIO.on()
-    time.sleep(0.3)
+    time.sleep(0.4)
     FUSING_GPIO.off()
     log.sd_write("Fusing completed")
     
     # サブキャリア脱出
     forward(100, 100)
     time.sleep(1)
-    forward(30, 30)
-    time.sleep(2)
+    forward(50, 50)
+    time.sleep(5)
     stop()
-
-def avoid_para():
-    cam.detect_para()
-    if cam.para_pixels > 0:
-        if cam.para_pixels > 10000:  # パラシュートが近いとき
-            backward(30, 30)
-            time.sleep(1)
-            stop()
-            
-        if 0 <= cam.para_cx <= 120:
-            turn_right(30)
-            time.sleep(3)
-            stop()
-            forward(30, 30)
-            time.sleep(3)
-            stop()
-            turn_left(30)
-            time.sleep(3)
-            stop()
-            forward(30, 30)
-            time.sleep(3)
-            stop()
-            
-        elif 120 < cam.para_cx <= 240:
-            turn_left(30)
-            time.sleep(3)
-            stop()
-            forward(30, 30)
-            time.sleep(3)
-            stop()
-            turn_right(30)
-            time.sleep(3)
-            stop()
-            forward(30, 30)
-            time.sleep(3)
-            stop()
+    arm.moving_position()
+    time.sleep(1)
 
 # GPS誘導(station_num=0で地上局0への誘導、station_num=1で地上局1への誘導)
 def gps_guidance(station_num):        
@@ -813,15 +760,12 @@ def gps_guidance(station_num):
     bno.compute_heading()
     bno.compute_euler()
     azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
-    log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
     
     if abs(azimuth_error) > 20:
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
         angle = (azimuth_error + 360) % 360
         soutai_turn(angle, init_yaw)
-
-    avoid_para()
         
     while True:
         gps.read_nmea()
@@ -829,12 +773,11 @@ def gps_guidance(station_num):
         bno.compute_heading()
         bno.compute_euler()
         azimuth_error = ((gps.azimuth - bno.heading + 180) % 360) - 180
-        log.sd_write(f"Distance: {gps.distance}, Azimuth: {azimuth_error}")
         
         cam.read_color()
         
         # 地上局検知
-        if cam.color_pixels[station_color]  > 300 and cam.aspect_ratio[station_color] > 1.5 and 1 < cam.color_rotation[station_color] < 2:
+        if cam.color_pixels[station_num] > 300:
             log.sd_write("GPS guidance completed")
             stop()
             break 
@@ -846,7 +789,7 @@ def gps_guidance(station_num):
             soutai_turn(angle, init_yaw)
         
         else:
-            forward(30, 30)
+            forward(50, 50)
         
         time.sleep(0.01)
 
@@ -869,96 +812,213 @@ def color_guidance(index):
                             
         if cam.color_pixels[index] > 10000:
             stop()
+            log.sd_write("Color guidance completed")
             break
         
         time.sleep(0.1)
 
-def find_apriltag(index, tag_mode):
-    tag_id = [2, 6]
-    ka = None
-    
+                
+# エイプリルタグに正対するプログラム
+def apriltag_alignment(index): 
     while True:
-        cam.read_tags(tag_mode)
-        log.ble_print(f"{cam.tag_detected[index]}")
-        if cam.tag_detected[tag_id[index]]:
-            ka = (cam.tag_pitch[tag_id[index]] + 180) % 360 - 180
-            corrected_distance = 424.115 + (2.5032 * cam.tag_distance[tag_id[index]] - 1.1803)
-            if ka is not None and ka > 0:
-                log.ble_print("tag detected. L")
-                #10cmバックさせる
-                back_distance =100
-                t_1 = back_distance / (135 * math.pi * (rpm /60))
-                straight_ward("b", t_1)
-                log.ble_print("a")
-                
-                bno.compute_euler()
-                init_yaw = (-bno.yaw + 360) % 360
-                soutai_turn(90, init_yaw)
-                log.ble_print("b")
-                go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
-                t_2 = go_distance / (135 * math.pi * (rpm /60))
-                straight_ward("f", t_2)
-                soutai_turn(360 - ka, init_yaw)
-                
-                t = 250 / (135 * math.pi * (rpm /60))
-                straight_ward("b", t)
-                cx = cam.tag_cx[tag_id[index]]
-                print(cx)
-                rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
-                rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30, 100))
-                forward(rpm_a, rpm_b)
-                time.sleep(4)
-                stop()
+        cam.read_tags(index)
+        detected_id = None
+        corrected_distance = None  
+        ka = None
+        # 0～9 のタグIDをすべてチェック
+        for i in range(10):  
+            if cam.tag_detected[i]:
+                detected_id = i
                 break
-                log.ble_print("c")
-          
+        if detected_id:
+            break
+                  # 最初に見つかったタグを使用
+        log.ble_print("No tag detected.")
+        # タグが見つからなければ、右旋回して再探索
+        turn_right(20)
+        time.sleep(0.2)
+        stop()
             
-            elif ka is not None and ka < 0:
-                #10cmバックさせる
-                log.ble_print("tag detected. R")
-                back_distance =100
-                t_1 = back_distance / (135 * math.pi * (rpm /60))
-                straight_ward("b", t_1)
-                log.ble_print("d")
-                
-                bno.compute_euler()
-                init_yaw = (-bno.yaw + 360) % 360
-                soutai_turn(270, init_yaw)
-                log.ble_print("e")
-                go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
-                t_2 = go_distance / (135 * math.pi * (rpm /60))
-                straight_ward("f", t_2)
-                soutai_turn(abs(ka), init_yaw)
-                
-                t = 250 / (135 * math.pi * (rpm /60))
-                straight_ward("b", t)
-                cx = cam.tag_cx[tag_id[index]]
-                print(cx)
-                rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
-                rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30, 100))
-                forward(rpm_a, rpm_b)
-                time.sleep(4)
-                stop()
-                break
+    if detected_id is not None:  
+        corrected_distance = 424.115 + (2.5032 * cam.tag_distance[detected_id] - 1.1803)
+        ka = (cam.tag_pitch[detected_id] + 180) % 360 - 180
+        log.ble_print(f"Tag {detected_id}: Distance = {corrected_distance}, Pitch = {ka}")
+        # タグが検出されたのでループ終了（以降、正対などの処理に進む）
+          
+    else:
+        log.ble_print("No tag detected.")
+        # タグが見つからなければ、右旋回して再探索
+        turn_right(20)
+        time.sleep(0.2)
+        stop()
+        corrected_distance = None  
+        ka = None
+    
+    if ka is not None and ka > 10:
+        log.ble_print("tag detected. L")
+        #10cmバックさせる
+        back_distance =100
+        t_1 = back_distance / (135 * math.pi * (rpm /60))
+        straight_ward("b", t_1)
+        log.ble_print("a")
         
         bno.compute_euler()
         init_yaw = (-bno.yaw + 360) % 360
-        soutai_turn(70, init_yaw)
-        forward(30, 30)
-        time.sleep(0.5)
-        stop()
+        soutai_turn(90, init_yaw)
+        log.ble_print("b")
+        go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
+        t_2 = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t_2)
+        soutai_turn(360 - ka, init_yaw)
+        forward(30,30)
+        time.sleep(1)
+        log.ble_print("c")
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(360 - cam.tag_pitch[detected_id], init_yaw)
         
-        while True:
-            cam.read_color()
-            log.ble_print(f"{cam.color_pixels[index]}, {cam.color_cx[index]}")
-            if cam.color_pixels[index] > 0 and cam.aspect_ratio[index] > 1.5 and 1 < cam.color_rotation[index] < 2:
-                if cam.color_cx[index] >= 120:
-                    break
-                
-            turn_left(30)
-            time.sleep(0.1)
-            stop()               
+            
+        
+    elif ka is not None and ka < -10:
+        #10cmバックさせる
+        log.ble_print("tag detected. R")
+        back_distance =100
+        t_1 = back_distance / (135 * math.pi * (rpm /60))
+        straight_ward("b", t_1)
+        log.ble_print("d")
+        
+        bno.compute_euler()
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(270, init_yaw)
+        log.ble_print("e")
+        go_distance = (corrected_distance + back_distance )* abs(math.tan(math.radians(ka)))
+        t_2 = go_distance / (135 * math.pi * (rpm /60))
+        straight_ward("f", t_2)
+        soutai_turn(abs(ka), init_yaw)
+        forward(30,30)
+        time.sleep(1)
+        init_yaw = (-bno.yaw + 360) % 360
+        soutai_turn(cam.tag_pitch[detected_id], init_yaw)
+        
+        
+            
+def apriltag_guidance(index):
+    station_tag = [[2, 3, 5, 4], [6, 7, 9, 8]]
+    target_ids = station_tag[index]
+    # コーンの半径（mm）
+    CONES_RADIUS = 199
+    detected_id = None
+    
+    # 直進：タグまでの距離が20cmになるまで前進
+    while True:
+        cam.read_tags(index)
+        log.ble_print("000")
+        
+        # 検出されたタグを確認
+        for tag_id in target_ids:
+            if cam.tag_detected[tag_id]:
+                detected_id = tag_id
+                break
+            
+        if detected_id is None:
+            #print("No tag detected, searching..."
+            log.ble_print("0000")
+            time.sleep(1)
+            turn_right(20)
+            time.sleep(0.5)
+            stop()
+            continue
+        
+        # タグの距離を確認
+        distance = cam.tag_distance[detected_id]
+        log.ble_print("0")
+        
+        # タグID による動作
+        if detected_id in [2, 6]:
+            log.ble_print(f"Tag ID {detected_id}: In position. No further maneuver needed.")
+            #300mm後退
+            t = 300 / (135 * math.pi * (rpm /60))
+            straight_ward("b", t)
+            cx = cam.tag_cx[detected_id]
+            rpm_a = max(0, min(-KP_CAMERA * (cx - 120) + 30, 100))
+            rpm_b = max(0, min(KP_CAMERA * (cx - 120) + 30, 100))
+            forward(rpm_a, rpm_b)
+            time.sleep(1)
+            
+            stop()
+            
+            log.sd_write("AprilTag guidance completed")
 
+            break
+        
+        elif detected_id in [4, 8]:
+            log.ble_print(f"Tag ID {detected_id}")
+            log.ble_print("1")
+            bno.compute_euler()
+            log.ble_print("2")
+            init_yaw = (-bno.yaw + 360) % 360
+            log.ble_print("3")
+            soutai_turn(90, init_yaw)  # 右90°旋回
+            log.ble_print("h")
+
+            go_distance_1 = CONES_RADIUS + 300
+            t_1 = go_distance_1 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_1)
+            soutai_turn(0, init_yaw)  # 左90°旋回
+            log.ble_print("i")
+            
+            go_distance_2 = CONES_RADIUS + 200
+            t_2 = go_distance_2 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(270, init_yaw)  # 左90°旋回
+            log.ble_print("j")
+            
+        elif detected_id in [3, 7]:
+            log.ble_print(f"Tag ID {detected_id}")
+            
+            bno.compute_euler()
+            
+            init_yaw = (-bno.yaw + 360) % 360
+            log.ble_print("3")
+            soutai_turn(270, init_yaw)  # 左90°旋回
+            log.ble_print("k")
+
+            go_distance_1 = CONES_RADIUS + 300
+            t_1 = go_distance_1 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_1)
+            log.ble_print("5")
+            soutai_turn(0, init_yaw)  # 右90°旋回
+            log.ble_print("l")
+            
+            go_distance_2 = CONES_RADIUS + 300
+            t_2 = go_distance_2 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(90, init_yaw)  # 右90°旋回
+            log.ble_print("m")
+            
+            
+        elif detected_id in [5, 9]:
+            log.ble_print(f"Tag ID {detected_id}")
+            bno.compute_euler()
+            init_yaw = (-bno.yaw + 360) % 360
+            soutai_turn(90, init_yaw)  # 右90°旋回
+            log.ble_print("n")
+            
+            
+            go_distance_1 = CONES_RADIUS + 300
+            t_1 = go_distance_1 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_1)
+            soutai_turn(0, init_yaw)  # 左90°旋回
+            log.ble_print("o")
+            
+            go_distance_2 = 2 * CONES_RADIUS + 300
+            t_2 = go_distance_2 / (135 * math.pi * (rpm /60))
+            straight_ward("f", t_2)
+            soutai_turn(270, init_yaw)  # 左90°旋回
+            log.ble_print("p")
+
+            straight_ward("f", t)
+            soutai_turn(180, init_yaw)  # 左90°旋回
+            log.ble_print("q")
     
    
 # 物資回収(index=0で地上局0での制御、index=1で地上局1での制御)
@@ -988,23 +1048,26 @@ if __name__ == "__main__":
     time.sleep(5)
     
     try:
-        start()
+        arm.reset_position()
         released()
         landing()
         fusing()
         gps_guidance(0)
         color_guidance(0)
-        find_apriltag(0, 0)
+        apriltag_alignment(0)
+        apriltag_guidance(0)
         collect_material(0)
         gps_guidance(1)
         color_guidance(1)
-        find_apriltag(1, 1)
+        apriltag_alignment(1)
+        apriltag_guidance(1)
         arm.place_object()
         collect_material(1)
         color_guidance(0)
         gps_guidance(0)
         color_guidance(0)
-        find_apriltag(0, 0)
+        apriltag_alignment(0)
+        apriltag_guidance(0)
         arm.place_object()
         
         
@@ -1013,4 +1076,5 @@ if __name__ == "__main__":
     finally:
         stop()
         time.sleep(1)
+
 
